@@ -2,8 +2,13 @@
 from enum import Enum
 from datetime import datetime
 
+class TableStatus(Enum):
+    READY = "Ready"
+    DIRTY = "Dirty"
+    OCCUPIED = "Occupied"
+
 class Table(object):
-    def __init__(self, footprint, size_px , desirability, type, combinable_with, party):
+    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status):
         """
         :param footprint: The footprint the table will occupy on the floor plan specified as a (x,y) to (x2,y2)
             which are the top left and bottom right coords of the table
@@ -17,6 +22,9 @@ class Table(object):
         :param combinable_with: list of tables that this table can be combined with, as a list of other Tables
 
         :param party: handle for a Party object that is associated with the table
+
+        :param status: status of the table itself, can be ready or dirty etc.
+
         """
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
@@ -24,10 +32,11 @@ class Table(object):
         self.type = type  # String
         self.combinable_with = combinable_with  # List of Table objects
         self.party = party  # Party object
+        self.status = status  # Table status enum
 
     def __repr__(self):
         return (f"Table(footprint={self.footprint}, size_px={self.size_px}, "
-                f"location={self.location}, desirability={self.desirability}, "
+                f" desirability={self.desirability}, "
                 f"type='{self.type}', combinable_with={self.combinable_with}, "
                 f"party={self.party})")
 
@@ -62,14 +71,22 @@ class Table(object):
         """
         self.party = None
 
+    def update_party_status(self,status):
+        """
+         Update the status of the party that is at the table if availible
+         :param status: The status to update to, of type PartyStatus
+        """
+        if self.party:
+            self.party.update_status(status)
+
 
 class PartyStatus(Enum):
     ARRIVED = "Arrived"
     SEATED = "Seated"
-    ORDERED = "Ordered"
+    APPS = "Apps"
     MAIN_COURSE = "Main Course"
     DESSERT = "Dessert"
-    LEFT = "Left"
+    CHECK_DROPPED = "Check Dropped"
 
 
 class Party(object):
