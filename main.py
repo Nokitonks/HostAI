@@ -56,33 +56,6 @@ if __name__ == '__main__':
                 pygame.draw.rect(screen, GRAY, rect, 1)
 
 
-    def draw_option_box(table, pos):
-        options = list(PartyStatus)
-        options.remove(PartyStatus.ARRIVED)
-        option_rects = []
-        box_width = 200
-        box_height = len(options) * 40
-        option_box = pygame.Rect(pos[0], pos[1], box_width, box_height)
-
-        pygame.draw.rect(screen, LIGHT_GRAY, option_box)
-        pygame.draw.rect(screen, BLACK, option_box, 2)
-
-        for i, status in enumerate(options):
-            option_rect = pygame.Rect(pos[0], pos[1] + i * 40, box_width, 40)
-            option_rects.append(option_rect)
-            pygame.draw.rect(screen, WHITE, option_rect)
-            pygame.draw.rect(screen, BLACK, option_rect, 1)
-            screen.blit(font.render(status.value, True, BLACK), (pos[0] + 10, pos[1] + i * 40 + 10))
-
-        return option_rects, options
-
-
-    def handle_option_click(option_rects, options, pos, table):
-        for i, option_rect in enumerate(option_rects):
-            if option_rect.collidepoint(pos):
-                table.party.update_status(options[i])
-                return True
-        return False
 
     def draw_table(table,offset):
         x1, y1 = table.footprint[0]
@@ -137,30 +110,14 @@ if __name__ == '__main__':
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
 
-                if show_option_box:
-                    """
-                    If option box is shown we want to only take mouse clicks inside that rect
-                    otherwise we want to hide option box
-                    """
-                    if handle_option_click(option_rects, options, pos, selected_table):
-                        print("Table status changed")
-                    show_option_box = False
 
-
-                elif TABLE_SECTION.collidepoint(pos):
+                if TABLE_SECTION.collidepoint(pos):
                     for table in tables:
                         x1, y1 = table.footprint[0]
                         x2, y2 = table.footprint[1]
                         table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
                                                  (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
                         if table_rect.collidepoint(pos):
-                            selected_table = table
-                            if table.party is None:
-                                break
-                            show_option_box = True
-                            options_box_loc = pos
-                            option_rects, options = draw_option_box(table, pos)
-
                             break
 
                 elif PARTY_SECTION.collidepoint(pos):
