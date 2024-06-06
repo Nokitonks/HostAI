@@ -1,6 +1,7 @@
 
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timedelta
+import pygame
 
 class TableStatus(Enum):
     READY = "Ready"
@@ -81,12 +82,12 @@ class Table(object):
 
 
 class PartyStatus(Enum):
-    ARRIVED = "Arrived"
-    SEATED = "Seated"
-    APPS = "Apps"
-    MAIN_COURSE = "Main Course"
-    DESSERT = "Dessert"
-    CHECK_DROPPED = "Check Dropped"
+    ARRIVED = "ARRIVED"
+    SEATED = "SEATED"
+    APPS = "APPS"
+    MAIN_COURSE = "MAIN_COURSE"
+    DESSERT = "DESSERT"
+    CHECK_DROPPED = "CHECK_DROPPED"
 
 
 class Party(object):
@@ -295,4 +296,21 @@ class Check(object):
         """
         close_time = self.get_close_time_as_datetime()
         return current_time < close_time
+class UniversalClock:
+    def __init__(self, start_time, speed_factor=3):
+        self.current_time = start_time
+        self.speed_factor = speed_factor
+        self.last_update = pygame.time.get_ticks()
 
+    def update(self):
+        now = pygame.time.get_ticks()
+        time_delta = now - self.last_update
+        if time_delta > (1000/self.speed_factor):  # Update every second
+            self.current_time += timedelta(seconds=(time_delta / 1000) * self.speed_factor)
+            self.last_update = now
+
+    def set_speed(self, speed_factor):
+        self.speed_factor = speed_factor
+
+    def get_time_str(self):
+        return self.current_time.strftime("%H:%M:%S")

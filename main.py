@@ -6,7 +6,7 @@ from ClassDefinitions import *
 import pygame
 import sys
 from helperFunctions import *
-
+from datetime import datetime, timedelta
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -34,6 +34,10 @@ if __name__ == '__main__':
     ROWS = SCREEN_HEIGHT // GRID_SIZE
     COLS = SCREEN_WIDTH // GRID_SIZE
 
+    # Scroll settings
+    scroll_offset = 0
+    scroll_speed = 20
+
     # Font
     font = pygame.font.Font(None, 36)
     # Create example instances
@@ -45,9 +49,24 @@ if __name__ == '__main__':
     table3 = Table(((8, 4), (10, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table4 = Table(((4, 8), (6, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
 
+
     # Define sections
     TABLE_SECTION = pygame.Rect(SCREEN_WIDTH // 4, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
     PARTY_SECTION = pygame.Rect(0, 0, SCREEN_WIDTH // 4, SCREEN_HEIGHT)
+
+    PARTY_PADDING_X = 10
+    PARTY_RECT_SIZE_Y = 40
+    def get_max_font_size(text, max_width, max_height, base_font_size):
+        font_size = base_font_size
+        font = pygame.font.Font(None, font_size)
+        text_width, text_height = font.size(text)
+
+        while (text_width > max_width or text_height > max_height) and font_size > 1:
+            font_size -= 1
+            font = pygame.font.Font(None, font_size)
+            text_width, text_height = font.size(text)
+
+        return font
 
     def draw_grid(offset):
         for row in range(ROWS):
@@ -55,6 +74,19 @@ if __name__ == '__main__':
                 rect = pygame.Rect(col * GRID_SIZE + offset[0], row * GRID_SIZE + offset[1], GRID_SIZE, GRID_SIZE)
                 pygame.draw.rect(screen, GRAY, rect, 1)
 
+
+    def draw_parties(offset, scroll_offset):
+        start_y = offset[1] - scroll_offset
+        for i, party in enumerate(waitlist):
+            party_rect = pygame.Rect(offset[0], start_y + i * PARTY_RECT_SIZE_Y, PARTY_SECTION.width, PARTY_RECT_SIZE_Y)
+            if PARTY_SECTION.colliderect(party_rect):  # Only draw if within the PARTY_SECTION
+                pygame.draw.rect(screen, WHITE, party_rect)
+                pygame.draw.rect(screen, BLACK, party_rect, 1)
+                party_text = f"Party {i+1}: {party.num_people} {party.arrival_time}"
+                max_font = get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
+                text_surface = max_font.render(party_text, True, BLACK)
+                text_rect = text_surface.get_rect(center=party_rect.center)
+                screen.blit(text_surface, text_rect.topleft)
 
 
     def draw_table(table,offset):
@@ -92,6 +124,11 @@ if __name__ == '__main__':
         pygame.draw.rect(screen, party_color, party_rect)
 
 
+    def draw_universal_clock(clock):
+        clock_text = clock.get_time_str()
+        clock_surface = font.render(clock_text, True, GREEN)
+        clock_rect = clock_surface.get_rect(center=(SCREEN_WIDTH // 2, 30))
+        screen.blit(clock_surface, clock_rect.topleft)
 
     # Main game loop
     running = True
@@ -102,6 +139,13 @@ if __name__ == '__main__':
     show_option_box = False
     option_rects = []
     options = []
+    waitlist = [
+        party1,
+        # Add more parties as needed for testing
+    ]
+
+    # Initialize universal clock
+    universal_clock = UniversalClock(datetime.now().replace(hour=18, minute=0, second=0, microsecond=0))
 
     while running:
         for event in pygame.event.get():
@@ -109,7 +153,6 @@ if __name__ == '__main__':
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
-
 
                 if TABLE_SECTION.collidepoint(pos):
                     for table in tables:
@@ -124,6 +167,8 @@ if __name__ == '__main__':
                    # select_party(pos)
                     pass
 
+        # Update universal clock
+        universal_clock.update()
 
         # Game logic here
 
@@ -133,6 +178,7 @@ if __name__ == '__main__':
         pygame.draw.rect(screen, BLUE, PARTY_SECTION, 2)
         screen.set_clip(PARTY_SECTION)
         screen.set_clip(None)
+        draw_parties((PARTY_SECTION.x, PARTY_SECTION.y), scroll_offset)
 
         # Draw table section
         pygame.draw.rect(screen, BLUE, TABLE_SECTION, 2)
@@ -148,6 +194,8 @@ if __name__ == '__main__':
         if show_option_box:
             option_rects, options = draw_option_box(selected_table, options_box_loc)
 
+        # Draw universal clock
+        draw_universal_clock(universal_clock)
         # Drawing code
         pygame.display.flip()
 
