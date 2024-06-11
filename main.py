@@ -148,6 +148,8 @@ if __name__ == '__main__':
             if table.party is None: raise ValueError("ERROR: Table is occupied but no Party Object ")
             table_color = GRAY
 
+        #  table.party exists from here on out:-->
+
         pygame.draw.rect(screen, table_color, table_rect)
         #Find status of the party at the table
 
@@ -164,7 +166,12 @@ if __name__ == '__main__':
 
         party_rect = create_scaled_rect(table_rect,60)
         pygame.draw.rect(screen, party_color, party_rect)
+        pygame.draw.rect(screen, party_color, party_rect)
 
+        text = f"{(universal_clock.current_time - table.party.sat_time).seconds//60}"
+        text_surface = font.render(text, True, BLACK)
+        text_rect = text_surface.get_rect(center=party_rect.center)
+        screen.blit(text_surface, text_rect)
 
     def draw_universal_clock(clock):
         clock_text = clock.get_time_str()
@@ -211,6 +218,7 @@ if __name__ == '__main__':
                             if selected_party and table.party is None:
                                 table.assign_party(selected_party)
                                 waitlist.remove(selected_party)
+                                selected_party.sat_time = universal_clock.current_time
                                 selected_party = None
                             elif not selected_party and table.party :
                                 print("Party info")
