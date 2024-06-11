@@ -41,10 +41,12 @@ if __name__ == '__main__':
     # Font
     font = pygame.font.Font(None, 36)
     # Create example instances
-    party1 = Party(4, None, [], PartyStatus.MAIN_COURSE, "18:00", "18:20", "19:30", 10)
+    party1 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
+    party2 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
+    party3 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
     reservation1 = Reservation("Smith", 4, "19:00", "555-1234", "Window seat", ReservationStatus.PENDING)
     check1 = Check("18:30", "20:00", 75.50)
-    table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], party1,TableStatus.OCCUPIED)
+    table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table2 = Table(((8, 8), (10, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table3 = Table(((8, 4), (10, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table4 = Table(((4, 8), (6, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
@@ -80,7 +82,13 @@ if __name__ == '__main__':
         for i, party in enumerate(waitlist):
             party_rect = pygame.Rect(offset[0], start_y + i * PARTY_RECT_SIZE_Y, PARTY_SECTION.width, PARTY_RECT_SIZE_Y)
             if PARTY_SECTION.colliderect(party_rect):  # Only draw if within the PARTY_SECTION
-                pygame.draw.rect(screen, WHITE, party_rect)
+                if selected_party is party:
+                    pygame.draw.rect(screen, GREEN, party_rect)
+                else:
+                    if party.status is PartyStatus.SEATED:
+                        pygame.draw.rect(screen, ORANGE , party_rect)
+                    else:
+                        pygame.draw.rect(screen, WHITE, party_rect)
                 pygame.draw.rect(screen, BLACK, party_rect, 1)
                 party_text = f"Party {i+1}: {party.num_people} {party.arrival_time}"
                 max_font = get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
@@ -88,6 +96,40 @@ if __name__ == '__main__':
                 text_rect = text_surface.get_rect(center=party_rect.center)
                 screen.blit(text_surface, text_rect.topleft)
 
+    def draw_party_info(table, offset):
+        x1, y1 = table.footprint[0]
+        x2, y2 = table.footprint[1]
+        table_rect = pygame.Rect(x1 * GRID_SIZE + offset[0], y1 * GRID_SIZE + offset[1], (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
+
+        # Calculate party rectangle position (above the table)
+        party_rect_x = table_rect.x
+        party_rect_y = table_rect.y - PARTY_RECT_SIZE_Y
+        party_rect_width = PARTY_SECTION.width - PARTY_PADDING_X
+        party_rect_height = PARTY_RECT_SIZE_Y
+
+        # Draw the party rectangle
+        party_rect = pygame.Rect(party_rect_x, party_rect_y, party_rect_width, party_rect_height)
+
+        if table.party.status is PartyStatus.SEATED:
+            pygame.draw.rect(screen, ORANGE, party_rect)
+        else:
+            pygame.draw.rect(screen, WHITE, party_rect)
+        pygame.draw.rect(screen, BLACK, party_rect, 1)
+        party_text = f"Party : {table.party.num_people} {table.party.arrival_time}"
+        max_font = get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
+        text_surface = max_font.render(party_text, True, BLACK)
+        text_rect = text_surface.get_rect(center=party_rect.center)
+        screen.blit(text_surface, text_rect.topleft)
+
+    def select_party(pos):
+        global selected_party
+        index = (pos[1]) // PARTY_RECT_SIZE_Y
+        if index < len(waitlist):
+            if waitlist[index].status is PartyStatus.ARRIVED:
+                selected_party = waitlist[index]
+                print(f"Selected party {index + 1}: {selected_party}")
+        else:
+            selected_party = None
 
     def draw_table(table,offset):
         x1, y1 = table.footprint[0]
@@ -141,6 +183,8 @@ if __name__ == '__main__':
     options = []
     waitlist = [
         party1,
+        party2,
+        party3
         # Add more parties as needed for testing
     ]
 
@@ -154,19 +198,30 @@ if __name__ == '__main__':
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = pygame.mouse.get_pos()
 
+                #Clicked on a table inside the table section
                 if TABLE_SECTION.collidepoint(pos):
+                    selected_table = None
                     for table in tables:
                         x1, y1 = table.footprint[0]
                         x2, y2 = table.footprint[1]
                         table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
                                                  (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
                         if table_rect.collidepoint(pos):
-                            break
+                            print(f"Selected {table} table")
+                            if selected_party and table.party is None:
+                                table.assign_party(selected_party)
+                                waitlist.remove(selected_party)
+                                selected_party = None
+                            elif not selected_party and table.party :
+                                print("Party info")
+                                selected_table = table
+                            else:
+                                selected_table = None
 
+                #Clicked on a party inside the party section
                 elif PARTY_SECTION.collidepoint(pos):
-                   # select_party(pos)
+                    select_party(pos)
                     pass
-
         # Update universal clock
         universal_clock.update()
 
@@ -191,8 +246,8 @@ if __name__ == '__main__':
         screen.set_clip(None)
 
         # Draw option box if needed
-        if show_option_box:
-            option_rects, options = draw_option_box(selected_table, options_box_loc)
+        if selected_table:
+            draw_party_info(selected_table,table_offset)
 
         # Draw universal clock
         draw_universal_clock(universal_clock)

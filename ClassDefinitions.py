@@ -65,6 +65,8 @@ class Table(object):
         :param party: The party to assign.
         """
         self.party = party
+        self.update_party_status(PartyStatus.SEATED)
+        self.status = TableStatus.OCCUPIED
 
     def remove_party(self):
         """
