@@ -267,7 +267,7 @@ if __name__ == '__main__':
                         table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
                                                  (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
                         if table_rect.collidepoint(pos):
-                            if selected_party and table.party is None:
+                            if selected_party and table.status == TableStatus.READY :
                                 table.assign_party(selected_party)
                                 waitlist.remove(selected_party)
                                 selected_party.sat_time = universal_clock.current_time
