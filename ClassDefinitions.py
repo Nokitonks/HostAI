@@ -9,7 +9,7 @@ class TableStatus(Enum):
     OCCUPIED = "Occupied"
 
 class Table(object):
-    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status):
+    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
         """
         :param footprint: The footprint the table will occupy on the floor plan specified as a (x,y) to (x2,y2)
             which are the top left and bottom right coords of the table
@@ -26,6 +26,9 @@ class Table(object):
 
         :param status: status of the table itself, can be ready or dirty etc.
 
+        :param clean_time: float representing how long the table takes to get cleaned (in seconds)
+
+        :param clean_progress: float representing the status of the table being cleaned (in seconds
         """
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
@@ -34,6 +37,8 @@ class Table(object):
         self.combinable_with = combinable_with  # List of Table objects
         self.party = party  # Party object
         self.status = status  # Table status enum
+        self.clean_time = clean_time
+        self.clean_progress = clean_progress
 
     def __repr__(self):
         return (f"Table(footprint={self.footprint}, size_px={self.size_px}, "
@@ -90,10 +95,11 @@ class PartyStatus(Enum):
     MAIN_COURSE = "MAIN_COURSE"
     DESSERT = "DESSERT"
     CHECK_DROPPED = "CHECK_DROPPED"
+    LEFT = "LEFT"
 
 
 class Party(object):
-    def __init__(self, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness):
+    def __init__(self, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
         """
         :param num_people: The amount of people in the party specified as an Int
 
@@ -110,6 +116,8 @@ class Party(object):
         :param leave_time: Time when party leaves, is a String
 
         :param happiness: Rating of 1-10 based on how close the quoted wait time was to the actual time to seat
+
+        :param dine_time: string representing how long it will take this party to eat their meal represented in minutes
         """
         self.num_people = num_people  # Integer
         self.reservation = reservation  # Reservation object or None
@@ -119,6 +127,8 @@ class Party(object):
         self.sat_time = sat_time  # String
         self.leave_time = leave_time  # String
         self.happiness = happiness  # Integer (1-10)
+        self.dine_time = dine_time  #  Integer (minutes)
+
 
     def __repr__(self):
         return (f"Party(num_people={self.num_people}, reservation={self.reservation}, checks={self.checks}, "
@@ -171,7 +181,8 @@ class Party(object):
             difference = abs(quoted_wait_time - actual_wait_time)
             self.happiness = max(1, 10 - (difference // 10))
 
-
+    def __str__(self):
+        return f"{self.num_people} - {self.status}"
 
 
 class Reservation(object):
@@ -310,7 +321,8 @@ class UniversalClock:
         if time_delta > (1000/self.speed_factor):  # Update every second
             self.current_time += timedelta(seconds=(time_delta / 1000) * self.speed_factor)
             self.last_update = now
-
+            return True
+        return False
     def set_speed(self, speed_factor):
         self.speed_factor = speed_factor
 

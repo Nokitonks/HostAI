@@ -41,9 +41,9 @@ if __name__ == '__main__':
     # Font
     font = pygame.font.Font(None, 36)
     # Create example instances
-    party1 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
-    party2 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
-    party3 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10)
+    party1 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,90)
+    party2 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,30)
+    party3 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,2)
     reservation1 = Reservation("Smith", 4, "19:00", "555-1234", "Window seat", ReservationStatus.PENDING)
     check1 = Check("18:30", "20:00", 75.50)
     table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
@@ -90,7 +90,7 @@ if __name__ == '__main__':
                     else:
                         pygame.draw.rect(screen, WHITE, party_rect)
                 pygame.draw.rect(screen, BLACK, party_rect, 1)
-                party_text = f"Party {i+1}: {party.num_people} {party.arrival_time}"
+                party_text = str(party)
                 max_font = get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
                 text_surface = max_font.render(party_text, True, BLACK)
                 text_rect = text_surface.get_rect(center=party_rect.center)
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         else:
             pygame.draw.rect(screen, WHITE, party_rect)
         pygame.draw.rect(screen, BLACK, party_rect, 1)
-        party_text = f"Party : {table.party.num_people} {table.party.arrival_time}"
+        party_text = str(table.party)
         max_font = get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
         text_surface = max_font.render(party_text, True, BLACK)
         text_rect = text_surface.get_rect(center=party_rect.center)
@@ -127,7 +127,6 @@ if __name__ == '__main__':
         if index < len(waitlist):
             if waitlist[index].status is PartyStatus.ARRIVED:
                 selected_party = waitlist[index]
-                print(f"Selected party {index + 1}: {selected_party}")
         else:
             selected_party = None
 
@@ -142,11 +141,17 @@ if __name__ == '__main__':
         elif table.status == TableStatus.DIRTY:
             table_color = RED
             pygame.draw.rect(screen, table_color, table_rect)
+
+            # Draw the foreground rectangle based on progress
+            foreground_width = (table_rect.width * table.clean_progress) / table.clean_time
+            pygame.draw.rect(screen, GREEN, (table_rect.x, table_rect.y, foreground_width, table_rect.height))
+
             return
         else:
             #If we are here it means that table.party is not null
             if table.party is None: raise ValueError("ERROR: Table is occupied but no Party Object ")
             table_color = GRAY
+
 
         #  table.party exists from here on out:-->
 
@@ -173,15 +178,58 @@ if __name__ == '__main__':
         text_rect = text_surface.get_rect(center=party_rect.center)
         screen.blit(text_surface, text_rect)
 
+    def draw_score():
+        score_text = f"Score: {game_score}"
+        score_surface = font.render(score_text, True, GREEN)
+        score_rect = score_surface.get_rect(center=(SCREEN_WIDTH * 2 // 3, 30))
+        screen.blit(score_surface, score_rect.topright)
+
     def draw_universal_clock(clock):
         clock_text = clock.get_time_str()
         clock_surface = font.render(clock_text, True, GREEN)
         clock_rect = clock_surface.get_rect(center=(SCREEN_WIDTH // 2, 30))
         screen.blit(clock_surface, clock_rect.topleft)
 
+    def update_tables():
+        global update_tables_flag
+        update_tables_flag = False
+        for table in tables:
+            if table.party:
+                time_seated = (universal_clock.current_time - table.party.sat_time).seconds//60
+                if time_seated >= table.party.dine_time:
+
+                    # Update our score
+                    score_party(table.party)
+
+                    # Add party to served list and set table to dirty
+                    table.party.status = PartyStatus.LEFT
+                    served.append(table.party)
+                    table.remove_party()
+                    table.status = TableStatus.DIRTY
+
+            elif table.status == TableStatus.DIRTY:
+                if table.clean_progress >= table.clean_time:
+                    table.clean_progress = 0
+                    table.status = TableStatus.READY
+                else:
+                    table.clean_progress += 1
+
+    def score_party(party):
+        global game_score
+        """
+        :param party: the party to score
+
+        This is where we will implement how our scoring system works (Very important for eventual AI)
+        """
+        game_score += party.num_people
+
+        pass
+
     # Main game loop
     running = True
     tables = [table1, table2, table3, table4]
+    game_score = 0
+    update_tables_flag = False
     selected_party = None
     selected_table = None
     options_box_loc = None
@@ -195,8 +243,13 @@ if __name__ == '__main__':
         # Add more parties as needed for testing
     ]
 
+    # Parties are added to this list once they have finished eating and left
+    served = [
+
+    ]
+
     # Initialize universal clock
-    universal_clock = UniversalClock(datetime.now().replace(hour=18, minute=0, second=0, microsecond=0))
+    universal_clock = UniversalClock(datetime.now().replace(hour=18, minute=0, second=0, microsecond=0),speed_factor=15)
 
     while running:
         for event in pygame.event.get():
@@ -214,14 +267,12 @@ if __name__ == '__main__':
                         table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
                                                  (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
                         if table_rect.collidepoint(pos):
-                            print(f"Selected {table} table")
                             if selected_party and table.party is None:
                                 table.assign_party(selected_party)
                                 waitlist.remove(selected_party)
                                 selected_party.sat_time = universal_clock.current_time
                                 selected_party = None
                             elif not selected_party and table.party :
-                                print("Party info")
                                 selected_table = table
                             else:
                                 selected_table = None
@@ -230,9 +281,11 @@ if __name__ == '__main__':
                 elif PARTY_SECTION.collidepoint(pos):
                     select_party(pos)
                     pass
-        # Update universal clock
-        universal_clock.update()
+        # Update universal clock - returns true only when it is updated every second
+        if universal_clock.update():
+            if not update_tables_flag: update_tables_flag = True
 
+        update_tables()
         # Game logic here
 
         screen.fill(BLACK)
@@ -259,6 +312,9 @@ if __name__ == '__main__':
 
         # Draw universal clock
         draw_universal_clock(universal_clock)
+
+        # Draw score
+        draw_score()
         # Drawing code
         pygame.display.flip()
 
