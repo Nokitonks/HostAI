@@ -248,7 +248,8 @@ class Reservation(object):
         reservation_time = self.get_reservation_time_as_datetime()
         time_until_reservation = (reservation_time - current_time).seconds // 60
         return time_until_reservation
-
+    def __str__(self):
+        return f"{self.party_name} reserved at {self.reservation_time} for {self.num_people} people"
 
 class ReservationStatus(Enum):
     PENDING = "Pending"

@@ -41,10 +41,12 @@ if __name__ == '__main__':
     # Font
     font = pygame.font.Font(None, 36)
     # Create example instances
-    party1 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,90)
+    party1 = Party(6, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,90)
     party2 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,30)
     party3 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,2)
     reservation1 = Reservation("Smith", 4, "19:00", "555-1234", "Window seat", ReservationStatus.PENDING)
+    reservation2 = Reservation("Smithy", 6, "19:30", "555-1234", "Window seat", ReservationStatus.PENDING)
+    reservation3 = Reservation("John", 2, "17:00", "555-1234", "Window seat", ReservationStatus.PENDING)
     check1 = Check("18:30", "20:00", 75.50)
     table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table2 = Table(((8, 8), (10, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
@@ -223,7 +225,31 @@ if __name__ == '__main__':
         """
         game_score += party.num_people
 
-        pass
+    def draw_reservation_view(offset):
+        # Graph dimensions and position
+        graph_x = 0
+        graph_y = SCREEN_HEIGHT*0.2
+        graph_width = SCREEN_WIDTH
+        graph_height = SCREEN_HEIGHT * 0.8
+
+        pygame.draw.rect(screen, ORANGE, (graph_x, SCREEN_HEIGHT*0.2, graph_width, graph_height), 2)
+        pygame.draw.rect(screen, GRAY, (graph_x, SCREEN_HEIGHT*0.2, graph_width, graph_height) )
+
+
+        # Draw reservations
+        RESO_RECT_SIZE = 40
+        start_y = offset[1]
+        for i, reservation in enumerate(reservations):
+            reso_rect = pygame.Rect(offset[0], start_y + i * RESO_RECT_SIZE, SCREEN_WIDTH, RESO_RECT_SIZE)
+            pygame.draw.rect(screen, WHITE, reso_rect)
+            pygame.draw.rect(screen, BLACK, reso_rect, 1)
+            reso_text = str(reservation)
+            max_font = get_max_font_size(reso_text, SCREEN_WIDTH, RESO_RECT_SIZE, 36)
+            text_surface = max_font.render(reso_text, True, BLACK)
+            text_rect = text_surface.get_rect(center=reso_rect.center)
+            screen.blit(text_surface, text_rect.topleft)
+
+
 
     # Main game loop
     running = True
@@ -236,6 +262,10 @@ if __name__ == '__main__':
     show_option_box = False
     option_rects = []
     options = []
+    show_reservations = False
+    reservations = [reservation1,
+                    reservation2,
+                    reservation3]
     waitlist = [
         party1,
         party2,
@@ -267,7 +297,7 @@ if __name__ == '__main__':
                         table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
                                                  (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
                         if table_rect.collidepoint(pos):
-                            if selected_party and table.status == TableStatus.READY :
+                            if selected_party and table.status == TableStatus.READY and table.size_px >= selected_party.num_people:
                                 table.assign_party(selected_party)
                                 waitlist.remove(selected_party)
                                 selected_party.sat_time = universal_clock.current_time
@@ -280,7 +310,11 @@ if __name__ == '__main__':
                 #Clicked on a party inside the party section
                 elif PARTY_SECTION.collidepoint(pos):
                     select_party(pos)
-                    pass
+
+
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    show_reservations = not show_reservations
         # Update universal clock - returns true only when it is updated every second
         if universal_clock.update():
             if not update_tables_flag: update_tables_flag = True
@@ -313,8 +347,14 @@ if __name__ == '__main__':
         # Draw universal clock
         draw_universal_clock(universal_clock)
 
+
         # Draw score
         draw_score()
+
+        # Draw reservation view
+        if show_reservations:
+            draw_reservation_view((0,SCREEN_WIDTH*0.2))
+
         # Drawing code
         pygame.display.flip()
 
