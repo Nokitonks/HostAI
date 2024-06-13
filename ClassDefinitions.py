@@ -2,7 +2,8 @@
 from enum import Enum
 from datetime import datetime, timedelta
 import pygame
-
+# Game manager to handle screen switching
+# Base class for screens
 class TableStatus(Enum):
     READY = "Ready"
     DIRTY = "Dirty"
