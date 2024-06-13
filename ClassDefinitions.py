@@ -89,6 +89,7 @@ class Table(object):
 
 
 class PartyStatus(Enum):
+    NONE = "NONE"
     ARRIVED = "ARRIVED"
     SEATED = "SEATED"
     APPS = "APPS"
@@ -99,8 +100,10 @@ class PartyStatus(Enum):
 
 
 class Party(object):
-    def __init__(self, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
+    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
         """
+        :param name: The name of the party specified as a string
+
         :param num_people: The amount of people in the party specified as an Int
 
         :param reservation: A reservation object that is tied to the party if it exists, if a walk-in this will be None
@@ -119,6 +122,7 @@ class Party(object):
 
         :param dine_time: string representing how long it will take this party to eat their meal represented in minutes
         """
+        self.name = name # String
         self.num_people = num_people  # Integer
         self.reservation = reservation  # Reservation object or None
         self.checks = checks  # List of Check objects
@@ -182,7 +186,7 @@ class Party(object):
             self.happiness = max(1, 10 - (difference // 10))
 
     def __str__(self):
-        return f"{self.num_people} - {self.status}"
+        return f"{self.num_people} - {self.name}"
 
 
 class Reservation(object):

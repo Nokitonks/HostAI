@@ -7,6 +7,7 @@ import pygame
 import sys
 from helperFunctions import *
 from datetime import datetime, timedelta
+import csv
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -41,12 +42,6 @@ if __name__ == '__main__':
     # Font
     font = pygame.font.Font(None, 36)
     # Create example instances
-    party1 = Party(6, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,90)
-    party2 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,30)
-    party3 = Party(4, None, [], PartyStatus.ARRIVED, "18:00", "18:20", "19:30", 10,2)
-    reservation1 = Reservation("Smith", 4, "19:00", "555-1234", "Window seat", ReservationStatus.PENDING)
-    reservation2 = Reservation("Smithy", 6, "19:30", "555-1234", "Window seat", ReservationStatus.PENDING)
-    reservation3 = Reservation("John", 2, "17:00", "555-1234", "Window seat", ReservationStatus.PENDING)
     check1 = Check("18:30", "20:00", 75.50)
     table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
     table2 = Table(((8, 8), (10, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
@@ -215,6 +210,20 @@ if __name__ == '__main__':
                     table.status = TableStatus.READY
                 else:
                     table.clean_progress += 1
+    def update_arrivals():
+        global walk_ins, waitlist
+
+        for party in walk_ins:
+            clock_min = datetime.strptime(universal_clock.get_time_str(),"%H:%M:%S")
+            arrival_min = datetime.strptime(party.arrival_time,"%H:%M")
+            if arrival_min <= clock_min:
+                waitlist.append(party)
+                party.status = PartyStatus.ARRIVED
+                walk_ins.remove(party)
+
+
+
+
 
     def score_party(party):
         global game_score
@@ -250,6 +259,30 @@ if __name__ == '__main__':
             screen.blit(text_surface, text_rect.topleft)
 
 
+    # Function to read reservations from CSV
+    def read_reservations(csv_file):
+        reservations = []
+        with open(csv_file, mode='r') as file:
+            csv_reader = csv.DictReader(file)
+            for row in csv_reader:
+                reservation = Reservation(row['name'], int(row['num_people']), row['reservation_time'], row['phone'],
+                                          row['notes'], ReservationStatus[row['status']])
+                reservations.append(reservation)
+        return reservations
+
+
+    # Function to read walk-ins from CSV
+    def read_walk_ins(csv_file):
+        walk_ins = []
+        with open(csv_file, mode='r') as file:
+            csv_reader = csv.DictReader(file)
+            for row in csv_reader:
+                party = Party(row['name'],int(row['num_people']), None, None, PartyStatus.NONE,
+                                          row['arrival_time'], None, None, None, int(row['dine_time']))
+
+                walk_ins.append(party)
+        return walk_ins
+
 
     # Main game loop
     running = True
@@ -263,22 +296,29 @@ if __name__ == '__main__':
     option_rects = []
     options = []
     show_reservations = False
-    reservations = [reservation1,
-                    reservation2,
-                    reservation3]
     waitlist = [
-        party1,
-        party2,
-        party3
-        # Add more parties as needed for testing
     ]
 
     # Parties are added to this list once they have finished eating and left
     served = [
-
     ]
 
+    # Beginning of game we read in the reservations and walk-ins for the evening
+    reservations = read_reservations('reservations.csv')
+    reservations = sorted(reservations, key=lambda  x: x.reservation_time)
+
+    walk_ins = read_walk_ins('walk_ins.csv')
+
+    # Convert reservations to have their own party object tied to the reservation
+    for reservation in reservations:
+        party = Party(reservation.party_name,reservation.num_people, reservation, None,
+                      PartyStatus.NONE, reservation.reservation_time,None, None,
+                      None,reservation.num_people*10)
+        walk_ins.append(party)
+
+
     # Initialize universal clock
+
     universal_clock = UniversalClock(datetime.now().replace(hour=18, minute=0, second=0, microsecond=0),speed_factor=15)
 
     while running:
@@ -320,6 +360,7 @@ if __name__ == '__main__':
             if not update_tables_flag: update_tables_flag = True
 
         update_tables()
+        update_arrivals()
         # Game logic here
 
         screen.fill(BLACK)
