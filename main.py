@@ -38,6 +38,7 @@ class GameManager:
         next_screen = self.current_screen.next_screen
         if next_screen:
             self.current_screen = self.screens[next_screen]
+            if (next_screen == 'reservation_view'): self.current_screen.setup_game()
             self.current_screen.next_screen = None
         self.current_screen.update()
 
@@ -48,6 +49,8 @@ class MainScreen(Screen):
     def __init__(self):
         super().__init__()
         self.button_rect = pygame.Rect((SCREEN_WIDTH - BUTTON_WIDTH) // 2, SCREEN_HEIGHT - BUTTON_HEIGHT - 10, BUTTON_WIDTH, BUTTON_HEIGHT)
+
+        self.font = pygame.font.Font(None, 36)
 
     def handle_events(self, events):
         for event in events:
@@ -63,18 +66,48 @@ class MainScreen(Screen):
 
     def draw(self, screen):
         screen.fill(BLUE)
-        text = font.render("Main Screen", True, WHITE)
+        text = self.font.render("Main Screen", True, WHITE)
         screen.blit(text, (100, 100))
         pygame.draw.rect(screen, GRAY, self.button_rect)
-        button_text = font.render("View Reservations", True, BLACK)
+        button_text = self.font.render("View Reservations", True, BLACK)
         screen.blit(button_text, (self.button_rect.x + 10, self.button_rect.y + 10))
 
 # Reservation view
 class ReservationView(Screen):
     def __init__(self):
         super().__init__()
+        self.setup_game()
 
-        self.tables = [table1, table2, table3, table4]
+
+    def setup_game(self):
+        self.start_time = "18:00"
+        self.end_time = "22:00"
+        # Grid settings
+        self.GRID_SIZE = 40  # Size of the grid cells
+        self.ROWS = SCREEN_HEIGHT // self.GRID_SIZE
+        self.COLS = SCREEN_WIDTH // self.GRID_SIZE
+
+        # Scroll settings
+        self.scroll_offset = 0
+        self.scroll_speed = 20
+
+        # Font
+        self.font = pygame.font.Font(None, 36)
+        # Create example instances
+        self.check1 = Check("18:30", "20:00", 75.50)
+        self.table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None, TableStatus.READY)
+        self.table2 = Table(((8, 8), (10, 10)), 4, 8, 'regular table', [], None, TableStatus.READY)
+        self.table3 = Table(((8, 4), (10, 6)), 4, 8, 'regular table', [], None, TableStatus.READY)
+        self.table4 = Table(((4, 8), (6, 10)), 4, 8, 'regular table', [], None, TableStatus.READY)
+
+        # Define sections
+        self.TABLE_SECTION = pygame.Rect(SCREEN_WIDTH // 4, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.PARTY_SECTION = pygame.Rect(0, 0, SCREEN_WIDTH // 4, SCREEN_HEIGHT)
+
+        self.PARTY_PADDING_X = 10
+        self.PARTY_RECT_SIZE_Y = 40
+
+        self.tables = [self.table1, self.table2, self.table3, self.table4]
         self.game_score = 0
         self.update_tables_flag = False
         self.selected_party = None
@@ -88,7 +121,7 @@ class ReservationView(Screen):
         ]
 
         # Parties are added to this list once they have finished eating and left
-        served = [
+        self.served = [
         ]
 
         # Beginning of game we read in the reservations and walk-ins for the evening
@@ -107,7 +140,7 @@ class ReservationView(Screen):
 
         # Initialize universal clock
 
-        self.universal_clock = UniversalClock(datetime.now().replace(hour=18, minute=0, second=0, microsecond=0),speed_factor=15)
+        self.universal_clock = UniversalClock(datetime.now().replace(year=1900,month=1,day=1,hour=18, minute=0, second=0, microsecond=0),speed_factor=2)
 
     def handle_events(self, events):
         for event in events:
@@ -118,13 +151,13 @@ class ReservationView(Screen):
                 pos = pygame.mouse.get_pos()
 
                 #Clicked on a table inside the table section
-                if TABLE_SECTION.collidepoint(pos):
+                if self.TABLE_SECTION.collidepoint(pos):
                     self.selected_table = None
                     for table in self.tables:
                         x1, y1 = table.footprint[0]
                         x2, y2 = table.footprint[1]
-                        table_rect = pygame.Rect(x1 * GRID_SIZE + TABLE_SECTION.x, y1 * GRID_SIZE + TABLE_SECTION.y,
-                                                 (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
+                        table_rect = pygame.Rect(x1 * self.GRID_SIZE + self.TABLE_SECTION.x, y1 * self.GRID_SIZE + self.TABLE_SECTION.y,
+                                                 (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
                         if table_rect.collidepoint(pos):
                             if self.selected_party and table.status == TableStatus.READY and table.size_px >= self.selected_party.num_people:
                                 table.assign_party(self.selected_party)
@@ -137,7 +170,7 @@ class ReservationView(Screen):
                                 self.selected_table = None
 
                 #Clicked on a party inside the party section
-                elif PARTY_SECTION.collidepoint(pos):
+                elif self.PARTY_SECTION.collidepoint(pos):
                     self.select_party(pos)
 
 
@@ -150,26 +183,28 @@ class ReservationView(Screen):
         # Update universal clock - returns true only when it is updated every second
         if self.universal_clock.update():
             if not self.update_tables_flag: self.update_tables_flag = True
+            self.update_tables()
+            self.update_arrivals()
 
-        self.update_tables()
-        self.update_arrivals()
-        # Game logic here
+            # Check for game over
+            if self.universal_clock.current_time >= datetime.strptime(self.end_time,"%H:%M"):
+                game_manager.current_screen.next_screen = 'game_over'
 
-        pass
+                # Save results to object to pass to gameover view
 
     def draw(self, screen):
         screen.fill(BLACK)
 
         # Draw party section
-        pygame.draw.rect(screen, BLUE, PARTY_SECTION, 2)
-        screen.set_clip(PARTY_SECTION)
+        pygame.draw.rect(screen, BLUE, self.PARTY_SECTION, 2)
+        screen.set_clip(self.PARTY_SECTION)
         screen.set_clip(None)
-        self.draw_parties((PARTY_SECTION.x, PARTY_SECTION.y), scroll_offset)
+        self.draw_parties((self.PARTY_SECTION.x, self.PARTY_SECTION.y), self.scroll_offset)
 
         # Draw table section
-        pygame.draw.rect(screen, BLUE, TABLE_SECTION, 2)
-        table_offset = (TABLE_SECTION.x, TABLE_SECTION.y)
-        screen.set_clip(TABLE_SECTION)
+        pygame.draw.rect(screen, BLUE, self.TABLE_SECTION, 2)
+        table_offset = (self.TABLE_SECTION.x, self.TABLE_SECTION.y)
+        screen.set_clip(self.TABLE_SECTION)
         self.draw_grid(table_offset)
 
         for table in self.tables:
@@ -203,16 +238,16 @@ class ReservationView(Screen):
         return font
 
     def draw_grid(self,offset):
-        for row in range(ROWS):
-            for col in range(COLS):
-                rect = pygame.Rect(col * GRID_SIZE + offset[0], row * GRID_SIZE + offset[1], GRID_SIZE, GRID_SIZE)
+        for row in range(self.ROWS):
+            for col in range(self.COLS):
+                rect = pygame.Rect(col * self.GRID_SIZE + offset[0], row * self.GRID_SIZE + offset[1], self.GRID_SIZE, self.GRID_SIZE)
                 pygame.draw.rect(screen, GRAY, rect, 1)
 
     def draw_parties(self,offset, scroll_offset):
         start_y = offset[1] - scroll_offset
         for i, party in enumerate(self.waitlist):
-            party_rect = pygame.Rect(offset[0], start_y + i * PARTY_RECT_SIZE_Y, PARTY_SECTION.width, PARTY_RECT_SIZE_Y)
-            if PARTY_SECTION.colliderect(party_rect):  # Only draw if within the PARTY_SECTION
+            party_rect = pygame.Rect(offset[0], start_y + i * self.PARTY_RECT_SIZE_Y, self.PARTY_SECTION.width, self.PARTY_RECT_SIZE_Y)
+            if self.PARTY_SECTION.colliderect(party_rect):  # Only draw if within the PARTY_SECTION
                 if self.selected_party is party:
                     pygame.draw.rect(screen, GREEN, party_rect)
                 else:
@@ -222,7 +257,7 @@ class ReservationView(Screen):
                         pygame.draw.rect(screen, WHITE, party_rect)
                 pygame.draw.rect(screen, BLACK, party_rect, 1)
                 party_text = str(party)
-                max_font = self.get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
+                max_font = self.get_max_font_size(party_text, self.PARTY_SECTION.width - self.PARTY_PADDING_X, self.PARTY_RECT_SIZE_Y, 36)
                 text_surface = max_font.render(party_text, True, BLACK)
                 text_rect = text_surface.get_rect(center=party_rect.center)
                 screen.blit(text_surface, text_rect.topleft)
@@ -230,13 +265,13 @@ class ReservationView(Screen):
     def draw_party_info(self,table, offset):
         x1, y1 = table.footprint[0]
         x2, y2 = table.footprint[1]
-        table_rect = pygame.Rect(x1 * GRID_SIZE + offset[0], y1 * GRID_SIZE + offset[1], (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
+        table_rect = pygame.Rect(x1 * self.GRID_SIZE + offset[0], y1 * self.GRID_SIZE + offset[1], (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
 
         # Calculate party rectangle position (above the table)
         party_rect_x = table_rect.x
-        party_rect_y = table_rect.y - PARTY_RECT_SIZE_Y
-        party_rect_width = PARTY_SECTION.width - PARTY_PADDING_X
-        party_rect_height = PARTY_RECT_SIZE_Y
+        party_rect_y = table_rect.y - self.PARTY_RECT_SIZE_Y
+        party_rect_width = self.PARTY_SECTION.width - self.PARTY_PADDING_X
+        party_rect_height = self.PARTY_RECT_SIZE_Y
 
         # Draw the party rectangle
         party_rect = pygame.Rect(party_rect_x, party_rect_y, party_rect_width, party_rect_height)
@@ -247,13 +282,13 @@ class ReservationView(Screen):
             pygame.draw.rect(screen, WHITE, party_rect)
         pygame.draw.rect(screen, BLACK, party_rect, 1)
         party_text = str(table.party)
-        max_font = self.get_max_font_size(party_text, PARTY_SECTION.width - PARTY_PADDING_X, PARTY_RECT_SIZE_Y, 36)
+        max_font = self.get_max_font_size(party_text, self.PARTY_SECTION.width - self.PARTY_PADDING_X, self.PARTY_RECT_SIZE_Y, 36)
         text_surface = max_font.render(party_text, True, BLACK)
         text_rect = text_surface.get_rect(center=party_rect.center)
         screen.blit(text_surface, text_rect.topleft)
 
     def select_party(self,pos):
-        index = (pos[1]) // PARTY_RECT_SIZE_Y
+        index = (pos[1]) // self.PARTY_RECT_SIZE_Y
         if index < len(self.waitlist):
             if self.waitlist[index].status is PartyStatus.ARRIVED:
                 self.selected_party = self.waitlist[index]
@@ -263,7 +298,7 @@ class ReservationView(Screen):
     def draw_table(self,table,offset):
         x1, y1 = table.footprint[0]
         x2, y2 = table.footprint[1]
-        table_rect = pygame.Rect(x1 * GRID_SIZE + offset[0], y1 * GRID_SIZE + offset[1], (x2 - x1) * GRID_SIZE, (y2 - y1) * GRID_SIZE)
+        table_rect = pygame.Rect(x1 * self.GRID_SIZE + offset[0], y1 * self.GRID_SIZE + offset[1], (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
         if table.status == TableStatus.READY :
             table_color = GREEN
             pygame.draw.rect(screen, table_color, table_rect)
@@ -304,19 +339,19 @@ class ReservationView(Screen):
         pygame.draw.rect(screen, party_color, party_rect)
 
         text = f"{(self.universal_clock.current_time - table.party.sat_time).seconds//60}"
-        text_surface = font.render(text, True, BLACK)
+        text_surface = self.font.render(text, True, BLACK)
         text_rect = text_surface.get_rect(center=party_rect.center)
         screen.blit(text_surface, text_rect)
 
     def draw_score(self):
         score_text = f"Score: {self.game_score}"
-        score_surface = font.render(score_text, True, GREEN)
+        score_surface = self.font.render(score_text, True, GREEN)
         score_rect = score_surface.get_rect(center=(SCREEN_WIDTH * 2 // 3, 30))
         screen.blit(score_surface, score_rect.topright)
 
     def draw_universal_clock(self,clock):
         clock_text = clock.get_time_str()
-        clock_surface = font.render(clock_text, True, GREEN)
+        clock_surface = self.font.render(clock_text, True, GREEN)
         clock_rect = clock_surface.get_rect(center=(SCREEN_WIDTH // 2, 30))
         screen.blit(clock_surface, clock_rect.topleft)
 
@@ -415,6 +450,8 @@ class GameOverScreen(Screen):
         super().__init__()
         self.button_rect = pygame.Rect((SCREEN_WIDTH - BUTTON_WIDTH) // 2, SCREEN_HEIGHT // 2, BUTTON_WIDTH, BUTTON_HEIGHT)
 
+        self.font = pygame.font.Font(None, 36)
+
     def handle_events(self, events):
         for event in events:
             if event.type == pygame.QUIT:
@@ -429,10 +466,10 @@ class GameOverScreen(Screen):
 
     def draw(self, screen):
         screen.fill(BLACK)
-        text = font.render("Game Over", True, WHITE)
+        text = self.font.render("Game Over", True, WHITE)
         screen.blit(text, (SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - text.get_height() // 2 - 50))
         pygame.draw.rect(screen, GRAY, self.button_rect)
-        button_text = font.render("Restart", True, BLACK)
+        button_text = self.font.render("Restart", True, BLACK)
         screen.blit(button_text, (self.button_rect.x + 30, self.button_rect.y + 10))
 
 # Press the green button in the gutter to run the script.
@@ -458,32 +495,6 @@ if __name__ == '__main__':
     GRAY = (200, 200, 200)
     LIGHT_GRAY = (220, 220, 220)
 
-    # Grid settings
-    GRID_SIZE = 40  # Size of the grid cells
-    ROWS = SCREEN_HEIGHT // GRID_SIZE
-    COLS = SCREEN_WIDTH // GRID_SIZE
-
-    # Scroll settings
-    scroll_offset = 0
-    scroll_speed = 20
-
-    # Font
-    font = pygame.font.Font(None, 36)
-    # Create example instances
-    check1 = Check("18:30", "20:00", 75.50)
-    table1 = Table(((4, 4), (6, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
-    table2 = Table(((8, 8), (10, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
-    table3 = Table(((8, 4), (10, 6)), 4, 8, 'regular table', [], None,TableStatus.READY)
-    table4 = Table(((4, 8), (6, 10)), 4, 8, 'regular table', [], None,TableStatus.READY)
-
-
-    # Define sections
-    TABLE_SECTION = pygame.Rect(SCREEN_WIDTH // 4, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
-    PARTY_SECTION = pygame.Rect(0, 0, SCREEN_WIDTH // 4, SCREEN_HEIGHT)
-
-    PARTY_PADDING_X = 10
-    PARTY_RECT_SIZE_Y = 40
-
 
     # Main game loop
     running = True
@@ -492,7 +503,9 @@ if __name__ == '__main__':
     running = True
     while running:
         events = pygame.event.get()
+
         game_manager.handle_events(events)
+
         game_manager.update()
 
         game_manager.draw(screen)
