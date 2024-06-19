@@ -1,4 +1,4 @@
 name,num_people,reservation_time,phone,notes,status
-Smith,4,18:00,555-1234,Window seat,CONFIRMED
-Johnson,2,18:15,555-5678,Near the bar,CONFIRMED
-Williams,3,18:30,555-9101,Birthday,CONFIRMED
+Smith,4,20,555-1234,Window seat,CONFIRMED
+Johnson,2,30,555-5678,Near the bar,CONFIRMED
+Williams,3,80,555-9101,Birthday,CONFIRMED

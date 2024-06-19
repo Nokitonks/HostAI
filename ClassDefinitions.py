@@ -315,10 +315,11 @@ class Check(object):
         """
         close_time = self.get_close_time_as_datetime()
         return current_time < close_time
+
 class UniversalClock:
     def __init__(self, start_time, speed_factor=3):
         self.current_time = start_time
-
+        self.speed_factor = speed_factor
     def update(self):
         self.current_time += self.speed_factor
         return False
@@ -327,3 +328,26 @@ class UniversalClock:
 
     def get_time_str(self):
         return str(self.current_time)
+
+class PartyPool(set):
+    def __init__(self, *args,party_size):
+        super().__init__(*args)
+        # Initialize additional attributes if needed
+        self.party_size = party_size
+
+    def _get_most_urgent(self,option1,option2):
+
+        if not option1 : return option2
+        if not option2 : return option1
+
+        # Logic in here to determine which option is better
+        return option1
+
+    def get_party(self):
+        # Define a custom method
+        best = None
+        for party in self:
+            if self._get_most_urgent(best,party) == party:
+                best = party
+        self.remove(best)
+        return best

@@ -37,3 +37,15 @@ def translate(value, leftMin, leftMax, rightMin, rightMax):
 
     # Convert the 0-1 range into a value in the right range.
     return rightMin + (valueScaled * rightSpan)
+
+def get_max_font_size(text, max_width, max_height, base_font_size):
+    font_size = base_font_size
+    font = pygame.font.Font(None, font_size)
+    text_width, text_height = font.size(text)
+
+    while (text_width > max_width or text_height > max_height) and font_size > 1:
+        font_size -= 1
+        font = pygame.font.Font(None, font_size)
+        text_width, text_height = font.size(text)
+
+    return font

@@ -1,4 +1,4 @@
 name,num_people,arrival_time,dine_time
-Taylor,2,18:00,1
-Brown,4,18:06,45
-Davis,1,18:07,45
+Taylor,2,30,1
+Brown,4,65,45
+Davis,1,120,45
