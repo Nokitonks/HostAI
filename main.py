@@ -12,6 +12,8 @@ import csv
 class Screen:
     def __init__(self):
         self.next_screen = None
+    def play_step(self, events, action):
+        raise NotImplementedError
 
     def handle_events(self, events):
         raise NotImplementedError
@@ -34,6 +36,9 @@ class GameManager:
     def handle_events(self, events):
         self.current_screen.handle_events(events)
 
+    def play_step(self,events,action):
+        self.current_screen.play_step(events,action)
+
     def update(self):
         next_screen = self.current_screen.next_screen
         if next_screen:
@@ -44,6 +49,7 @@ class GameManager:
 
     def draw(self, screen):
         self.current_screen.draw(screen)
+
 # Main screen
 class MainScreen(Screen):
     def __init__(self):
@@ -60,7 +66,8 @@ class MainScreen(Screen):
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if self.button_rect.collidepoint(event.pos):
                     self.next_screen = 'reservation_view'
-
+    def play_step(self, events, action):
+        pass
     def update(self):
         pass
 
@@ -107,6 +114,15 @@ class ReservationView(Screen):
         self.PARTY_PADDING_X = 10
         self.PARTY_RECT_SIZE_Y = 40
 
+        """
+        FOR AGENT AI
+        """
+        self.frame_iteration = 0
+        self.reward = 0
+
+        # Need to implement all the "actions" that the agent can make
+
+
         self.tables = [self.table1, self.table2, self.table3, self.table4]
         self.game_score = 0
         self.update_tables_flag = False
@@ -119,7 +135,6 @@ class ReservationView(Screen):
         self.show_reservations = False
         self.waitlist = [
         ]
-
         # Parties are added to this list once they have finished eating and left
         self.served = [
         ]
@@ -178,6 +193,47 @@ class ReservationView(Screen):
                 if event.key == pygame.K_SPACE:
                     self.show_reservations = not self.show_reservations
 
+    """
+    Function that handles actions taken by agent
+    """
+    def play_step(self,events,action):
+
+        for event in events:
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pos = pygame.mouse.get_pos()
+
+                # Clicked on a table inside the table section
+                if self.TABLE_SECTION.collidepoint(pos):
+                    self.selected_table = None
+                    for table in self.tables:
+                        x1, y1 = table.footprint[0]
+                        x2, y2 = table.footprint[1]
+                        table_rect = pygame.Rect(x1 * self.GRID_SIZE + self.TABLE_SECTION.x,
+                                                 y1 * self.GRID_SIZE + self.TABLE_SECTION.y,
+                                                 (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
+                        if table_rect.collidepoint(pos):
+                            if self.selected_party and table.status == TableStatus.READY and table.size_px >= self.selected_party.num_people:
+                                table.assign_party(self.selected_party)
+                                self.waitlist.remove(self.selected_party)
+                                self.selected_party.sat_time = self.universal_clock.current_time
+                                self.selected_party = None
+                            elif not self.selected_party and table.party:
+                                self.selected_table = table
+                            else:
+                                self.selected_table = None
+
+                # Clicked on a party inside the party section
+                elif self.PARTY_SECTION.collidepoint(pos):
+                    self.select_party(pos)
+
+
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    self.show_reservations = not self.show_reservations
+
     def update(self):
 
         # Update universal clock - returns true only when it is updated every second
@@ -189,6 +245,7 @@ class ReservationView(Screen):
             # Check for game over
             if self.universal_clock.current_time >= datetime.strptime(self.end_time,"%H:%M"):
                 game_manager.current_screen.next_screen = 'game_over'
+                # Reward function for Agent TODO:
 
                 # Save results to object to pass to gameover view
 
@@ -461,6 +518,8 @@ class GameOverScreen(Screen):
                 if self.button_rect.collidepoint(event.pos):
                     self.next_screen = 'main_screen'
 
+    def play_step(self, events, action):
+        pass
     def update(self):
         pass
 
@@ -504,8 +563,9 @@ if __name__ == '__main__':
     while running:
         events = pygame.event.get()
 
-        game_manager.handle_events(events)
 
+        # game_manager.handle_events(events)
+        game_manager.play_step(events,action)
         game_manager.update()
 
         game_manager.draw(screen)

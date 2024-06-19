@@ -5,9 +5,9 @@ import pygame
 # Game manager to handle screen switching
 # Base class for screens
 class TableStatus(Enum):
-    READY = "Ready"
-    DIRTY = "Dirty"
-    OCCUPIED = "Occupied"
+    READY = 0
+    DIRTY = 1
+    OCCUPIED = 2
 
 class Table(object):
     def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
@@ -90,14 +90,14 @@ class Table(object):
 
 
 class PartyStatus(Enum):
-    NONE = "NONE"
-    ARRIVED = "ARRIVED"
-    SEATED = "SEATED"
-    APPS = "APPS"
-    MAIN_COURSE = "MAIN_COURSE"
-    DESSERT = "DESSERT"
-    CHECK_DROPPED = "CHECK_DROPPED"
-    LEFT = "LEFT"
+    NONE = 0
+    ARRIVED = 1
+    SEATED = 2
+    APPS = 3
+    MAIN_COURSE = 4
+    DESSERT = 5
+    CHECK_DROPPED = 6
+    LEFT = 7
 
 
 class Party(object):
@@ -257,10 +257,10 @@ class Reservation(object):
         return f"{self.party_name} reserved at {self.reservation_time} for {self.num_people} people"
 
 class ReservationStatus(Enum):
-    PENDING = "Pending"
-    CONFIRMED = "Confirmed"
-    SEATED = "Seated"
-    CANCELLED = "Cancelled"
+    PENDING = 0
+    CONFIRMED = 1
+    SEATED = 2
+    CANCELLED = 3
 
 
 class Check(object):
@@ -318,19 +318,12 @@ class Check(object):
 class UniversalClock:
     def __init__(self, start_time, speed_factor=3):
         self.current_time = start_time
-        self.speed_factor = speed_factor
-        self.last_update = pygame.time.get_ticks()
 
     def update(self):
-        now = pygame.time.get_ticks()
-        time_delta = now - self.last_update
-        if time_delta > (1000/self.speed_factor):  # Update every second
-            self.current_time += timedelta(seconds=(time_delta / 1000) * self.speed_factor)
-            self.last_update = now
-            return True
+        self.current_time += self.speed_factor
         return False
     def set_speed(self, speed_factor):
         self.speed_factor = speed_factor
 
     def get_time_str(self):
-        return self.current_time.strftime("%H:%M:%S")
+        return str(self.current_time)
