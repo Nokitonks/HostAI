@@ -26,3 +26,26 @@ def create_scaled_rect(original_rect, percentage):
     new_rect = pygame.Rect(new_x, new_y, new_width, new_height)
 
     return new_rect
+
+def translate(value, leftMin, leftMax, rightMin, rightMax):
+    # Figure out how 'wide' each range is
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+
+    # Convert the left range into a 0-1 range (float)
+    valueScaled = float(value - leftMin) / float(leftSpan)
+
+    # Convert the 0-1 range into a value in the right range.
+    return rightMin + (valueScaled * rightSpan)
+
+def get_max_font_size(text, max_width, max_height, base_font_size):
+    font_size = base_font_size
+    font = pygame.font.Font(None, font_size)
+    text_width, text_height = font.size(text)
+
+    while (text_width > max_width or text_height > max_height) and font_size > 1:
+        font_size -= 1
+        font = pygame.font.Font(None, font_size)
+        text_width, text_height = font.size(text)
+
+    return font

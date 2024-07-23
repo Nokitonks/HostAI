@@ -1,14 +1,16 @@
 
 from enum import Enum
-from datetime import datetime
-
+from datetime import datetime, timedelta
+import pygame
+# Game manager to handle screen switching
+# Base class for screens
 class TableStatus(Enum):
-    READY = "Ready"
-    DIRTY = "Dirty"
-    OCCUPIED = "Occupied"
+    READY = 0
+    DIRTY = 1
+    OCCUPIED = 2
 
 class Table(object):
-    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status):
+    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
         """
         :param footprint: The footprint the table will occupy on the floor plan specified as a (x,y) to (x2,y2)
             which are the top left and bottom right coords of the table
@@ -25,6 +27,9 @@ class Table(object):
 
         :param status: status of the table itself, can be ready or dirty etc.
 
+        :param clean_time: float representing how long the table takes to get cleaned (in seconds)
+
+        :param clean_progress: float representing the status of the table being cleaned (in seconds
         """
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
@@ -33,6 +38,8 @@ class Table(object):
         self.combinable_with = combinable_with  # List of Table objects
         self.party = party  # Party object
         self.status = status  # Table status enum
+        self.clean_time = clean_time
+        self.clean_progress = clean_progress
 
     def __repr__(self):
         return (f"Table(footprint={self.footprint}, size_px={self.size_px}, "
@@ -64,6 +71,8 @@ class Table(object):
         :param party: The party to assign.
         """
         self.party = party
+        self.update_party_status(PartyStatus.SEATED)
+        self.status = TableStatus.OCCUPIED
 
     def remove_party(self):
         """
@@ -81,17 +90,21 @@ class Table(object):
 
 
 class PartyStatus(Enum):
-    ARRIVED = "Arrived"
-    SEATED = "Seated"
-    APPS = "Apps"
-    MAIN_COURSE = "Main Course"
-    DESSERT = "Dessert"
-    CHECK_DROPPED = "Check Dropped"
+    NONE = 0
+    ARRIVED = 1
+    SEATED = 2
+    APPS = 3
+    MAIN_COURSE = 4
+    DESSERT = 5
+    CHECK_DROPPED = 6
+    LEFT = 7
 
 
 class Party(object):
-    def __init__(self, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness):
+    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
         """
+        :param name: The name of the party specified as a string
+
         :param num_people: The amount of people in the party specified as an Int
 
         :param reservation: A reservation object that is tied to the party if it exists, if a walk-in this will be None
@@ -107,7 +120,10 @@ class Party(object):
         :param leave_time: Time when party leaves, is a String
 
         :param happiness: Rating of 1-10 based on how close the quoted wait time was to the actual time to seat
+
+        :param dine_time: string representing how long it will take this party to eat their meal represented in minutes
         """
+        self.name = name # String
         self.num_people = num_people  # Integer
         self.reservation = reservation  # Reservation object or None
         self.checks = checks  # List of Check objects
@@ -116,6 +132,8 @@ class Party(object):
         self.sat_time = sat_time  # String
         self.leave_time = leave_time  # String
         self.happiness = happiness  # Integer (1-10)
+        self.dine_time = dine_time  #  Integer (minutes)
+
 
     def __repr__(self):
         return (f"Party(num_people={self.num_people}, reservation={self.reservation}, checks={self.checks}, "
@@ -168,11 +186,12 @@ class Party(object):
             difference = abs(quoted_wait_time - actual_wait_time)
             self.happiness = max(1, 10 - (difference // 10))
 
-
+    def __str__(self):
+        return f"{self.num_people} - {self.name}"
 
 
 class Reservation(object):
-    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status):
+    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time):
         """
         :param party_name: The name of the party making the reservation, specified as a String
 
@@ -192,6 +211,7 @@ class Reservation(object):
         self.contact_info = contact_info  # String
         self.special_requests = special_requests  # String
         self.status = ReservationStatus(status)  # ReservationStatus enum
+        self.dine_time = dine_time
 
     def __repr__(self):
         return (f"Reservation(party_name='{self.party_name}', num_people={self.num_people}, "
@@ -234,13 +254,14 @@ class Reservation(object):
         reservation_time = self.get_reservation_time_as_datetime()
         time_until_reservation = (reservation_time - current_time).seconds // 60
         return time_until_reservation
-
+    def __str__(self):
+        return f"{self.party_name} reserved at {self.reservation_time} for {self.num_people} people"
 
 class ReservationStatus(Enum):
-    PENDING = "Pending"
-    CONFIRMED = "Confirmed"
-    SEATED = "Seated"
-    CANCELLED = "Cancelled"
+    PENDING = 0
+    CONFIRMED = 1
+    SEATED = 2
+    CANCELLED = 3
 
 
 class Check(object):
@@ -295,4 +316,60 @@ class Check(object):
         """
         close_time = self.get_close_time_as_datetime()
         return current_time < close_time
+
+class UniversalClock:
+    def __init__(self, start_time, speed_factor=3):
+        self.current_time = start_time
+        self.speed_factor = speed_factor
+    def update(self):
+        self.current_time += self.speed_factor
+        return False
+    def set_speed(self, speed_factor):
+        self.speed_factor = speed_factor
+
+    def get_time_str(self):
+        return str(self.current_time)
+
+
+class PartyPoolManager():
+    def __init__(self,num_pools,max_amounts):
+        """
+
+        :param num_pools: amount of party pools to init to
+        :param max_amounts: list containing values that are max size of each pool i.e. [2,4,6,8]
+        """
+        max_amounts = sorted(max_amounts)
+        self.max_amounts = max_amounts
+        self.pools = []
+        for i in range(num_pools):
+            self.pools.append(PartyPool(party_size=max_amounts[i]))
+
+    def find_pool_for_size(self,size):
+        for i, amt in enumerate(self.max_amounts):
+            if size <= amt:
+                return self.pools[i]
+
+
+class PartyPool(set):
+    def __init__(self, *args,party_size):
+        super().__init__(*args)
+        # Initialize additional attributes if needed
+        self.party_size = party_size
+
+    def _get_most_urgent(self,option1,option2):
+
+        if not option1 : return option2
+        if not option2 : return option1
+
+        # Logic in here to determine which option is better
+        return option1
+
+    def get_party(self):
+        # Define a custom method
+        best = None
+        for party in self:
+            if self._get_most_urgent(best,party) == party:
+                best = party
+        self.remove(best)
+        return best
 
