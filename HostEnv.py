@@ -33,7 +33,7 @@ class HostWorldEnv(gym.Env):
         self.tables = config['tables']
 
         # Define action space
-        self.action_space = spaces.Discrete(4*len(self.tables))
+        self.action_space = spaces.Discrete(4*len(self.tables)+1)
 
         self.action_handlers = {
         }
@@ -44,6 +44,7 @@ class HostWorldEnv(gym.Env):
                     'party_pool':pools,
                     'table_index':table_index})
                 cnt += 1
+        self.action_handlers[cnt] = (self.default_action,{})
 
 
         """
@@ -88,25 +89,21 @@ class HostWorldEnv(gym.Env):
             'size': spaces.Discrete(max_party_size + 1),
             'status': spaces.Discrete(len(PartyStatus)),
             'arrival_time': spaces.Discrete(max_time),
-            'sat_time': spaces.Discrete(max_time),
-            'leave_time': spaces.Discrete(max_time),
             'reservation': reservation_space
         })
 
-        # Define space for all tables
-        tables_space = spaces.Dict({
+
+        # Define the full observation space
+        observation_space = spaces.Dict({
+            'tables': spaces.Dict({
             f'table_{i}': spaces.Dict({
                 'status': spaces.Discrete(len(TableStatus)),
                 'party': party_space
             }) for i in range(num_tables)
-        })
-
-        # Define the full observation space
-        observation_space = spaces.Dict({
-            'tables': tables_space,
+                }),
             'waitlist': spaces.Tuple([party_space for _ in range(max_wait_list)]),
             'reservation_list': spaces.Tuple([reservation_space for _ in range(max_reservation_list)]),
-            'current_time': spaces.Discrete(max_time)
+            'current_time': spaces.Discrete(max_time*2)
         })
 
         return observation_space
@@ -117,23 +114,26 @@ class HostWorldEnv(gym.Env):
         # Default action means action will be None
 
         # Call the handler function for the action with parameters
-        if action in self.action_handlers:
-            handler, params = self.action_handlers[action]
-            reward, done = handler(**params)
-        else:
-            print(f"Unknown action: {action}")
+        handler, params = self.action_handlers[action]
+        reward, done = handler(**params)
 
         # For debugging etc purposes
         info = {}
         self.universal_clock.update()
         reward += self.update_tables()
         self.update_arrivals()
+        reward += self.update_parties()
         if self.universal_clock.current_time >= self.end_time:
             # Game Over
-            done = True
+            if len(self.waitlist) == 0:
+                for table in self.tables:
+                    if table.status != TableStatus.READY:
+                        done = False
+                        break
+                    done = True
             pass
 
-        return self._get_observation(), reward, done, info
+        return self._get_observation(), reward, done, False, info
 
     def render(self, mode='human'):
 
@@ -162,7 +162,8 @@ class HostWorldEnv(gym.Env):
             pygame.display.flip()
 
 
-    def reset(self):
+    def reset(self,seed=None, options=None):
+        super().reset(seed=seed)
         self.colors = {
 
             'WHITE' : (255, 255, 255),
@@ -185,12 +186,7 @@ class HostWorldEnv(gym.Env):
         self.ROWS = self.window_size[1] // self.GRID_SIZE
         self.COLS = self.window_size[0] // self.GRID_SIZE
 
-        self.party_pools = [
-            PartyPool(party_size=2),
-            PartyPool(party_size=4),
-            PartyPool(party_size=6),
-            PartyPool(party_size=8)
-        ]
+        self.party_pool_manager = PartyPoolManager(4,[2,4,6,8])
 
         self.TABLE_SECTION = pygame.Rect(self.window_size[0] // 4, 0, self.window_size[0], self.window_size[1])
         self.PARTY_SECTION = pygame.Rect(0, 0, self.window_size[0] // 4, self.window_size[1])
@@ -206,7 +202,7 @@ class HostWorldEnv(gym.Env):
         self.served = []
 
         # Beginning of game we read in the reservations and walk-ins for the evening
-        reservations = self.read_reservations('reservations.csv')
+        reservations = self.read_reservations('reservations0.csv')
         self.reservations = sorted(reservations, key=lambda  x: x.reservation_time)
 
         self.walk_ins = self.read_walk_ins('walk_ins.csv')
@@ -215,20 +211,20 @@ class HostWorldEnv(gym.Env):
         for reservation in reservations:
             party = Party(reservation.party_name,reservation.num_people, reservation, None,
                           PartyStatus.NONE, reservation.reservation_time,None, None,
-                          None,reservation.num_people*10)
+                          None,reservation.dine_time)
             self.walk_ins.append(party)
 
         self.universal_clock = UniversalClock(self.start_time,1)
 
-        return self._get_observation()
+        return self._get_observation(),{}
 
     def read_reservations(self,csv_file):
         reservations = []
         with open(csv_file, mode='r') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
-                reservation = Reservation(row['name'], int(row['num_people']), row['reservation_time'], row['phone'],
-                                          row['notes'], ReservationStatus[row['status']])
+                reservation = Reservation(row['name'], int(row['num_people']), row['reservation_time'], "",
+                                          "", ReservationStatus[row['status']],int(row['dine_time']))
                 reservations.append(reservation)
         return reservations
 
@@ -244,44 +240,63 @@ class HostWorldEnv(gym.Env):
                 walk_ins.append(party)
         return walk_ins
 
+    def default_action(self):
+        return 0, False
+
     def assign_party_to_table(self,party_pool,table_index):
-        party = self.party_pools[party_pool].get_party()
+        try:
+            party = self.party_pool_manager.pools[party_pool].get_party()
+        except:
+            return 0, False
         table = self.tables[table_index]
         table.assign_party(party)
         self.waitlist.remove(party)
         party.sat_time = self.universal_clock.current_time
 
+        reward = party.num_people
         # Needs to return a reward and a done
-        return 1, False
+        return reward, False
 
     def get_action_mask(self):
 
         # Generate our action mask
-        action_mask = [True] * self.action_space.n
+        action_mask = [1] * (self.action_space.n )
 
         cnt = 0
-        val = True
+        val = 1
         for pools in range(4):
-            pool = self.party_pools[pools]
+            pool = self.party_pool_manager.pools[pools]
             for table_index in range(len(self.tables)):
                 table = self.tables[table_index]
-                val = True
+                val = 1
                 if len(pool) == 0:
-                    val = False
+                    val = 0
 
                 # Invalid if party size is not going to fit at the table
                 if (table.size_px < pool.party_size):
-                    val = False
+                    val = 0
 
                 # Invalid if the table is occupied
                 if (table.status != TableStatus.READY):
-                    val = False
+                    val = 0
 
                 action_mask[cnt] = val
                 cnt += 1
 
-        return action_mask
 
+        return np.array(action_mask,dtype=np.int8)
+
+    def update_parties(self):
+        """
+        add to the waiting time of all parties currently on wait list
+        """
+
+        for party in self.waitlist:
+            if self.universal_clock.current_time - (int(party.arrival_time)) >= self.config['wait_tolerance']:
+                self.waitlist.remove(party)
+                self.party_pool_manager.find_pool_for_size(party.num_people).remove(party)
+                return -party.num_people
+        return 0
 
     def update_arrivals(self):
 
@@ -290,7 +305,7 @@ class HostWorldEnv(gym.Env):
             arrival_min = int(party.arrival_time)
             if arrival_min <= clock_min:
                 self.waitlist.append(party)
-                for pool in self.party_pools:
+                for pool in self.party_pool_manager.pools:
                     if pool.party_size >= party.num_people:
                         pool.add(party)
                         break
@@ -327,7 +342,7 @@ class HostWorldEnv(gym.Env):
 
         This is where we will implement how our scoring system works (Very important for eventual AI)
         """
-        return party.num_people
+        return 0
 
     def draw_grid(self,offset):
         for row in range(self.ROWS):
@@ -404,12 +419,25 @@ class HostWorldEnv(gym.Env):
         text_rect = text_surface.get_rect(center=party_rect.center)
         self.screen.blit(text_surface, text_rect)
     def _get_observation(self):
+        dummy_party = {
+            'size': 0,
+            'status': 0,
+            'arrival_time': 0,
+            'reservation': {
+                'time_of_reservation': 0,
+                'reservation_status': 0
+            }
+        }
+        dummy_reservation = {
+            'time_of_reservation': 0,
+            'reservation_status':0
+        }
         # Create the observation dictionary based on the current state
         observation = {
             'tables': {},
             'waitlist': [],
             'reservation_list': [],
-            'current_time': self.universal_clock.current_time
+            'current_time': int(self.universal_clock.current_time)
         }
 
         for table_idx, table in enumerate(self.tables):
@@ -421,41 +449,42 @@ class HostWorldEnv(gym.Env):
                 party = table.party
                 table_observation['party'] = {
                     'size': party.num_people,
-                    'status': party.status,
-                    'arrival_time': party.arrival_time,
-                    'sat_time': party.sat_time,
-                    'leave_time': party.leave_time,
+                    'status': party.status.value,
+                    'arrival_time': int(party.arrival_time),
                     'reservation': {
-                        'time_of_reservation': None,
-                        'reservation_status': None
+                        'time_of_reservation': 0,
+                        'reservation_status': 0,
                     }
                 }
                 if party.reservation:
-                    table_observation['party']['reservation']['time_of_reservation'] = party.reservation.reservation_time
-                    table_observation['party']['reservation']['reservation_status'] = party.reservation.status
+                    table_observation['party']['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)
+                    table_observation['party']['reservation']['reservation_status'] = party.reservation.status.value
+            else:
+                table_observation['party'] = dummy_party
 
             observation['tables'][f'table_{table_idx}'] = table_observation
 
         for party in self.waitlist:
             observation['waitlist'].append({
                 'size': party.num_people,
-                'status': party.status,
-                'arrival_time': party.arrival_time,
-                'sat_time': party.sat_time,
-                'leave_time': party.leave_time,
+                'status': party.status.value,
+                'arrival_time': int(party.arrival_time),
                 'reservation': {
-                    'time_of_reservation': None,
-                    'reservation_status': None
+                    'time_of_reservation': 0,
+                    'reservation_status': 0
                 }
              })
             if party.reservation:
-                observation['waitlist'][-1]['reservation']['time_of_reservation'] = party.reservation.reservation_time
-                observation['waitlist'][-1]['reservation']['reservation_status'] = party.reservation.status
-
+                observation['waitlist'][-1]['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)
+                observation['waitlist'][-1]['reservation']['reservation_status'] = party.reservation.status.value
+        while len(observation['waitlist']) < self.config['max_wait_list']:
+            observation['waitlist'].append(dummy_party)
         for reservation in self.reservations:
             observation['reservation_list'].append({
-                'time_of_reservation': reservation.reservation_time,
-                'reservation_status': reservation.status
+                'time_of_reservation': int(reservation.reservation_time),
+                'reservation_status': reservation.status.value
             })
+        while len(observation['reservation_list']) < self.config['max_reservation_list']:
+            observation['reservation_list'].append(dummy_reservation)
 
         return observation

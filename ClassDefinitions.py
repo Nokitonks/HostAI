@@ -191,7 +191,7 @@ class Party(object):
 
 
 class Reservation(object):
-    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status):
+    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time):
         """
         :param party_name: The name of the party making the reservation, specified as a String
 
@@ -211,6 +211,7 @@ class Reservation(object):
         self.contact_info = contact_info  # String
         self.special_requests = special_requests  # String
         self.status = ReservationStatus(status)  # ReservationStatus enum
+        self.dine_time = dine_time
 
     def __repr__(self):
         return (f"Reservation(party_name='{self.party_name}', num_people={self.num_people}, "
@@ -329,6 +330,26 @@ class UniversalClock:
     def get_time_str(self):
         return str(self.current_time)
 
+
+class PartyPoolManager():
+    def __init__(self,num_pools,max_amounts):
+        """
+
+        :param num_pools: amount of party pools to init to
+        :param max_amounts: list containing values that are max size of each pool i.e. [2,4,6,8]
+        """
+        max_amounts = sorted(max_amounts)
+        self.max_amounts = max_amounts
+        self.pools = []
+        for i in range(num_pools):
+            self.pools.append(PartyPool(party_size=max_amounts[i]))
+
+    def find_pool_for_size(self,size):
+        for i, amt in enumerate(self.max_amounts):
+            if size <= amt:
+                return self.pools[i]
+
+
 class PartyPool(set):
     def __init__(self, *args,party_size):
         super().__init__(*args)
@@ -351,3 +372,4 @@ class PartyPool(set):
                 best = party
         self.remove(best)
         return best
+
