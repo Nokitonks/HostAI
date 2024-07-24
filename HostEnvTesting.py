@@ -21,11 +21,13 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 
+
 def mask_fn(env: gym.Env) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
     # for the current env. In this example, we assume the env has a
     # helpful method we can rely on.
     return env.get_action_mask()
+
 
 # Train using StableBaseline3. Lots of hardcoding for simplicity i.e. use of the A2C (Advantage Actor Critic) algorithm.
 def train_sb3(env):
@@ -54,9 +56,8 @@ def train_sb3(env):
 # Test using StableBaseline3. Lots of hardcoding for simplicity.
 def test_sb3(env,render=True):
 
-
     # Load model
-    model = MaskablePPO.load('models/Maskable_28000', env=env)
+    model = MaskablePPO.load('models/Maskable_10000', env=env)
     print(evaluate_policy(model, env, n_eval_episodes=20))
     total = 0
     for episode in range(20):
@@ -72,7 +73,7 @@ def test_sb3(env,render=True):
             action, _ = model.predict(observation=obs,action_masks=actions_masks) # Turn on deterministic, so predict always returns the same behavior
             obs, reward, terminated, _, _ = env.step(action.item())
             env.render()
-            time.sleep(1.1)
+            # time.sleep(1.1)
             score += reward
             if terminated:
                 print(f'score {score}')
@@ -82,9 +83,11 @@ def test_sb3(env,render=True):
 
 if __name__ == "__main__":
 
-
     config = {
-        'tables' : SMALL_TABLES,
+        'level_settings' : LevelSettings(SMALL_TABLES,8,220,30,30,
+                                        ((SMALL_TABLES[0],SMALL_TABLES[1]),
+                                        (SMALL_TABLES[2],SMALL_TABLES[3])
+                                 )),
         'max_party_size' : 8,
         'max_time': 220,
         'max_wait_list': 30,
@@ -100,7 +103,7 @@ if __name__ == "__main__":
     states = env.observation_space.shape[0]
     actions = env.action_space.n
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-    #train_sb3(env)
+    # train_sb3(env)
     test_sb3(env)
 
     for episode in tqdm(range(episodes)):
@@ -116,7 +119,6 @@ if __name__ == "__main__":
             action_mask = env.get_action_mask()
 
             # Check if all values are False by directly passing the list to `all`
-
             valid_actions = [i for i, valid in enumerate(action_mask) if valid]
             action = env.action_space.sample(action_mask)
             if not any(action_mask):

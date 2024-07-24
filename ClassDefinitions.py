@@ -4,10 +4,31 @@ from datetime import datetime, timedelta
 import pygame
 # Game manager to handle screen switching
 # Base class for screens
+class LevelSettings(object):
+    def __init__(self,tables,max_party_size,max_time,max_wait_list,max_res_list,combinable_tables):
+        """
+        :param tables: setup of the tables
+        :param max_party_size: The maximum num of people in one given party
+        :param max_time: the length of the level in time units
+        :param max_wait_list: how long the maximum wait_list can be
+        :param max_res_list:  how long the maximum reservation list can be
+        :param combinable_tables: list of tuples of tables that can be combined
+        """
+        self.tables = tables
+        self.max_party_size = max_party_size
+        self.max_time = max_time
+        self.max_wait_list = max_wait_list
+        self.max_res_list = max_res_list
+        for tuple in combinable_tables:
+            tuple[0].make_combinable_with(tuple[1])
+
+
+
 class TableStatus(Enum):
     READY = 0
     DIRTY = 1
     OCCUPIED = 2
+    COMBINED = 3
 
 class Table(object):
     def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
@@ -33,19 +54,88 @@ class Table(object):
         """
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
+        self.combined_size = size_px # Integer
         self.desirability = desirability  # Integer (0-10)
         self.type = type  # String
         self.combinable_with = combinable_with  # List of Table objects
+        self.combined_with = []  # List of Table objects
         self.party = party  # Party object
         self.status = status  # Table status enum
         self.clean_time = clean_time
         self.clean_progress = clean_progress
+
 
     def __repr__(self):
         return (f"Table(footprint={self.footprint}, size_px={self.size_px}, "
                 f" desirability={self.desirability}, "
                 f"type='{self.type}', combinable_with={self.combinable_with}, "
                 f"party={self.party})")
+
+    def __lt__(self, other):
+        return id(self) < id(other)
+
+    def __gt__(self, other):
+        return id(self) > id(other)
+
+    def __eq__(self, other):
+        return id(self) == id(other)
+
+    def combined(self):
+        """
+        :return: returns true if combined and false otherwise
+        """
+        return len(self.combined_with) != 0
+    def uncombine_with(self,other_table):
+        """
+        :param other_table: table to take apart from
+        :return: reward for the action and done variable
+        """
+        if other_table not in self.combined_with:
+            return
+
+        assert(self in other_table.combined_with)
+        assert(other_table in self.combined_with)
+        assert(other_table.status == TableStatus.READY
+               or self.status == TableStatus.READY)
+        assert(other_table.status == TableStatus.COMBINED
+               or self.status == TableStatus.COMBINED)
+
+        self.combined_size = self.size_px
+        other_table.combined_size = other_table.size_px
+
+        self.combined_with.remove(other_table)
+        other_table.combined_with.remove(self)
+
+        return 0 ,False
+
+    def combine_with(self,other_table):
+        """
+        :param other_table: table to combine with
+        :return: None
+        """
+        if other_table in self.combined_with:
+            return
+
+        assert(self in other_table.combinable_with)
+        assert(self.status == TableStatus.READY)
+        assert(other_table in self.combinable_with)
+        assert(other_table.status == TableStatus.READY)
+
+        new_size = self.size_px + other_table.size_px
+        self.combined_size = new_size
+        other_table.combined_size = new_size
+
+        self.combined_with.append(other_table)
+        other_table.combined_with.append(self)
+
+        return 0 ,False
+
+    def make_combinable_with(self, other_table):
+
+        if other_table not in self.combinable_with:
+            self.combinable_with.append(other_table)
+        if self not in other_table.combinable_with:
+            other_table.combinable_with.append(self)
 
     def can_combine_with(self, other_table):
         """
@@ -73,6 +163,10 @@ class Table(object):
         self.party = party
         self.update_party_status(PartyStatus.SEATED)
         self.status = TableStatus.OCCUPIED
+
+        # Update the status of all other tables in our combined table
+        for table in self.combined_with:
+            table.status = TableStatus.COMBINED
 
     def remove_party(self):
         """

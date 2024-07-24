@@ -30,10 +30,27 @@ class HostWorldEnv(gym.Env):
          full table etc.)
         """
         # The list containing tables objects to setup the grid of tables
-        self.tables = config['tables']
+        self.tables = config['level_settings'].tables
+
+
 
         # Define action space
-        self.action_space = spaces.Discrete(4*len(self.tables)+1)
+        num_assign_actions = 4*len(self.tables)
+        num_default_actions = 1
+
+        unique_combos = []
+        for table in self.tables:
+            for other_table in table.combinable_with:
+                combo = [table,other_table]
+                combo = sorted(combo)
+                if combo not in unique_combos:
+                    unique_combos.append(combo)
+        num_combine_actions = len(unique_combos)
+        self.action_space = spaces.Discrete(num_assign_actions +
+                                            num_default_actions +
+                                            num_combine_actions + # For combine actions
+                                            num_combine_actions   # For un-combine actions
+                                            )
 
         self.action_handlers = {
         }
@@ -44,6 +61,16 @@ class HostWorldEnv(gym.Env):
                     'party_pool':pools,
                     'table_index':table_index})
                 cnt += 1
+        for combo in unique_combos:
+            self.action_handlers[cnt] = (combo[0].combine_with,{
+                'other_table': combo[1]
+            })
+            cnt += 1
+            self.action_handlers[cnt] = (combo[0].uncombine_with,{
+                'other_table': combo[1]
+            })
+            cnt += 1
+        self.unique_combos = unique_combos
         self.action_handlers[cnt] = (self.default_action,{})
 
 
@@ -67,7 +94,10 @@ class HostWorldEnv(gym.Env):
                 Reservation Status -> Discrete
         """
 
-        self.observation_space = self.create_observation_space(len(self.tables), config['max_party_size'], config['max_time'], config['max_wait_list'],config['max_reservation_list'])
+        self.observation_space = self.create_observation_space(len(self.tables), config['level_settings'].max_party_size
+                                                               , config['level_settings'].max_time,
+                                                               config['level_settings'].max_wait_list,
+                                                               config['level_settings'].max_res_list)
         self.state = None
         self.reset()
 
@@ -98,7 +128,9 @@ class HostWorldEnv(gym.Env):
             'tables': spaces.Dict({
             f'table_{i}': spaces.Dict({
                 'status': spaces.Discrete(len(TableStatus)),
-                'party': party_space
+                'party': party_space,
+                'table_size': spaces.Discrete(max_party_size+1),
+                'table_combined_size': spaces.Discrete(max_party_size + 1)
             }) for i in range(num_tables)
                 }),
             'waitlist': spaces.Tuple([party_space for _ in range(max_wait_list)]),
@@ -127,7 +159,7 @@ class HostWorldEnv(gym.Env):
             # Game Over
             if len(self.waitlist) == 0:
                 for table in self.tables:
-                    if table.status != TableStatus.READY:
+                    if table.status != TableStatus.READY and table.status != TableStatus.COMBINED:
                         done = False
                         break
                     done = True
@@ -191,6 +223,11 @@ class HostWorldEnv(gym.Env):
         self.TABLE_SECTION = pygame.Rect(self.window_size[0] // 4, 0, self.window_size[0], self.window_size[1])
         self.PARTY_SECTION = pygame.Rect(0, 0, self.window_size[0] // 4, self.window_size[1])
 
+        # Reset tables that were combined
+        for table in self.tables:
+            table.combined_with = []
+            table.status = TableStatus.READY
+
         # Misc variables for GUI sizes
         self.PARTY_RECT_SIZE_Y = self.window_size[1] // 10
         self.PARTY_PADDING_X = self.PARTY_RECT_SIZE_Y // 4
@@ -202,10 +239,10 @@ class HostWorldEnv(gym.Env):
         self.served = []
 
         # Beginning of game we read in the reservations and walk-ins for the evening
-        reservations = self.read_reservations('reservations0.csv')
+        reservations = self.read_reservations('reservation_files/reservations0.csv')
         self.reservations = sorted(reservations, key=lambda  x: x.reservation_time)
 
-        self.walk_ins = self.read_walk_ins('walk_ins.csv')
+        self.walk_ins = self.read_walk_ins('walk_in_files/walk_ins.csv')
 
         # Convert reservations to have their own party object tied to the reservation
         for reservation in reservations:
@@ -273,7 +310,7 @@ class HostWorldEnv(gym.Env):
                     val = 0
 
                 # Invalid if party size is not going to fit at the table
-                if (table.size_px < pool.party_size):
+                if (table.combined_size < pool.party_size):
                     val = 0
 
                 # Invalid if the table is occupied
@@ -282,7 +319,33 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
+        for combo in self.unique_combos:
 
+            # This is the combine action between combo[0] and combo[1]
+            if (combo[0].can_combine_with(combo[1])
+                    and combo[0].status == TableStatus.READY
+                    and combo[1].status == TableStatus.READY
+                    and not combo[0].combined()
+                    and not combo[1].combined()):
+                val = 1
+            else:
+                val = 0
+            action_mask[cnt] = val
+            cnt += 1
+
+            # This is the un-combine action between combo[0] and combo[1]
+            # Only allow to uncombine with the node table of a combined set (Is the table that is status ready)
+            if(combo[0] in combo[1].combined_with
+                    and (combo[0].status == TableStatus.COMBINED and combo[1].status == TableStatus.READY)
+                    or (combo[1].status == TableStatus.COMBINED and combo[0].status == TableStatus.READY)
+                    and combo[0].combined()
+                    and combo[1].combined()):
+                val = 1
+            else:
+                val = 0
+
+            action_mask[cnt] = val
+            cnt += 1
 
         return np.array(action_mask,dtype=np.int8)
 
@@ -380,6 +443,10 @@ class HostWorldEnv(gym.Env):
             table_color = self.colors['GREEN']
             pygame.draw.rect(self.screen, table_color, table_rect)
             return
+        elif table.status == TableStatus.COMBINED:
+            table_color = self.colors['ORANGE']
+            pygame.draw.rect(self.screen, table_color, table_rect)
+            return
         elif table.status == TableStatus.DIRTY:
             table_color = self.colors['RED']
             pygame.draw.rect(self.screen, table_color, table_rect)
@@ -418,6 +485,7 @@ class HostWorldEnv(gym.Env):
         text_surface = self.font.render(text, True, self.colors['BLACK'])
         text_rect = text_surface.get_rect(center=party_rect.center)
         self.screen.blit(text_surface, text_rect)
+
     def _get_observation(self):
         dummy_party = {
             'size': 0,
@@ -443,6 +511,8 @@ class HostWorldEnv(gym.Env):
         for table_idx, table in enumerate(self.tables):
             table_observation = {
                 'status': table.status.value,
+                'table_size': table.size_px,
+                'table_combined_size': table.combined_size,
                 'party': None
             }
             if table.party:
@@ -451,6 +521,8 @@ class HostWorldEnv(gym.Env):
                     'size': party.num_people,
                     'status': party.status.value,
                     'arrival_time': int(party.arrival_time),
+                    'table_size': table.size_px,
+                    'table_combined_size': table.combined_size,
                     'reservation': {
                         'time_of_reservation': 0,
                         'reservation_status': 0,
