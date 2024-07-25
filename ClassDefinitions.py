@@ -176,15 +176,12 @@ class Table(object):
 
     def get_combined_size(self,seen_tables=[]):
 
-        if self in seen_tables:
-            return self.size_px
-
         sum = self.size_px
         for table in self.combined_with:
             if table in seen_tables:
                 continue
             new_seen = seen_tables
-            new_seen.append(table)
+            new_seen.append(self)
             sum += table.get_combined_size(new_seen)
         return sum
 

@@ -57,7 +57,7 @@ def train_sb3(env):
 def test_sb3(env,render=True):
 
     # Load model
-    model = MaskablePPO.load('models/Maskable_6000', env=env)
+    model = MaskablePPO.load('models/Maskable_19000', env=env)
     print(evaluate_policy(model, env, n_eval_episodes=20))
     total = 0
     for episode in range(20):
