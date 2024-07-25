@@ -54,11 +54,10 @@ class Table(object):
         """
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
-        self.combined_size = size_px # Integer
         self.desirability = desirability  # Integer (0-10)
         self.type = type  # String
         self.combinable_with = combinable_with  # List of Table objects
-        self.combined_with = []  # List of Table objects
+        self.combined_with = []  # set of Table objects
         self.party = party  # Party object
         self.status = status  # Table status enum
         self.clean_time = clean_time
@@ -80,31 +79,30 @@ class Table(object):
     def __eq__(self, other):
         return id(self) == id(other)
 
+    def reset(self):
+        self.status = TableStatus.READY
+        self.combined_with = []
+
     def combined(self):
         """
         :return: returns true if combined and false otherwise
         """
         return len(self.combined_with) != 0
+
     def uncombine_with(self,other_table):
         """
         :param other_table: table to take apart from
         :return: reward for the action and done variable
         """
-        if other_table not in self.combined_with:
-            return
+        # This method works both directions so no need to check other_table.can_combine_with(self)
+        assert(self.can_uncombine_with(other_table))
 
-        assert(self in other_table.combined_with)
-        assert(other_table in self.combined_with)
-        assert(other_table.status == TableStatus.READY
-               or self.status == TableStatus.READY)
-        assert(other_table.status == TableStatus.COMBINED
-               or self.status == TableStatus.COMBINED)
-
-        self.combined_size = self.size_px
-        other_table.combined_size = other_table.size_px
 
         self.combined_with.remove(other_table)
         other_table.combined_with.remove(self)
+
+        self.status = TableStatus.READY
+        other_table.status = TableStatus.READY
 
         return 0 ,False
 
@@ -113,17 +111,14 @@ class Table(object):
         :param other_table: table to combine with
         :return: None
         """
-        if other_table in self.combined_with:
-            return
+        # This method works both directions so no need to check other_table.can_combine_with(self)
+        assert(self.can_combine_with(other_table))
 
-        assert(self in other_table.combinable_with)
-        assert(self.status == TableStatus.READY)
-        assert(other_table in self.combinable_with)
-        assert(other_table.status == TableStatus.READY)
+        if len(other_table.combined_with) > len(self.combined_with):
+           self.status = TableStatus.COMBINED
+        else:
+            other_table.status = TableStatus.COMBINED
 
-        new_size = self.size_px + other_table.size_px
-        self.combined_size = new_size
-        other_table.combined_size = new_size
 
         self.combined_with.append(other_table)
         other_table.combined_with.append(self)
@@ -137,6 +132,30 @@ class Table(object):
         if self not in other_table.combinable_with:
             other_table.combinable_with.append(self)
 
+    def make_uncombinable_with(self, other_table):
+
+        if other_table in self.combinable_with:
+            self.combinable_with.remove(other_table)
+        if self in other_table.combinable_with:
+            other_table.combinable_with.remove(self)
+
+    def can_uncombine_with(self, other_table):
+        """
+        Check if this table can un-combine with another table.
+
+        :param other_table: The other table to check.
+        :return: True if combinable, False otherwise.
+        """
+        # Tables are not proper status to be uncombined (One needs to be combined and one ready)
+        if not (self.status == TableStatus.READY and other_table.status == TableStatus.COMBINED)\
+                and not (self.status == TableStatus.COMBINED and other_table.status == TableStatus.READY):
+            return False
+
+        if other_table not in self.combined_with or self not in other_table.combined_with:
+            return False
+
+        return True
+
     def can_combine_with(self, other_table):
         """
         Check if this table can combine with another table.
@@ -144,7 +163,31 @@ class Table(object):
         :param other_table: The other table to check.
         :return: True if combinable, False otherwise.
         """
-        return other_table in self.combinable_with
+        # Tables are not proper status to be combined (Must both be of status READY)
+        if self.status != TableStatus.READY or other_table.status != TableStatus.READY:
+            return False
+
+        # Tables have already been combined which should never happen
+        if other_table in self.combined_with or self in other_table.combined_with:
+            raise (ValueError,"Trying to combine tables with wrong status and already combined")
+            return False
+
+        return other_table in self.combinable_with and self in other_table.combinable_with
+
+    def get_combined_size(self,seen_tables=[]):
+
+        if self in seen_tables:
+            return self.size_px
+
+        sum = self.size_px
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            new_seen = seen_tables
+            new_seen.append(table)
+            sum += table.get_combined_size(new_seen)
+        return sum
+
 
     def is_available(self):
         """
@@ -230,9 +273,7 @@ class Party(object):
 
 
     def __repr__(self):
-        return (f"Party(num_people={self.num_people}, reservation={self.reservation}, checks={self.checks}, "
-                f"status={self.status}, arrival_time='{self.arrival_time}', sat_time='{self.sat_time}', "
-                f"leave_time='{self.leave_time}', happiness={self.happiness})")
+        return (f"Party(num_people={self.num_people}, name={self.name})")
 
     def update_status(self, new_status):
         """

@@ -225,8 +225,7 @@ class HostWorldEnv(gym.Env):
 
         # Reset tables that were combined
         for table in self.tables:
-            table.combined_with = []
-            table.status = TableStatus.READY
+            table.reset()
 
         # Misc variables for GUI sizes
         self.PARTY_RECT_SIZE_Y = self.window_size[1] // 10
@@ -310,7 +309,7 @@ class HostWorldEnv(gym.Env):
                     val = 0
 
                 # Invalid if party size is not going to fit at the table
-                if (table.combined_size < pool.party_size):
+                if (table.get_combined_size([]) < pool.party_size):
                     val = 0
 
                 # Invalid if the table is occupied
@@ -319,14 +318,10 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
-        for combo in self.unique_combos:
 
+        for combo in self.unique_combos:
             # This is the combine action between combo[0] and combo[1]
-            if (combo[0].can_combine_with(combo[1])
-                    and combo[0].status == TableStatus.READY
-                    and combo[1].status == TableStatus.READY
-                    and not combo[0].combined()
-                    and not combo[1].combined()):
+            if combo[0].can_combine_with(combo[1]):
                 val = 1
             else:
                 val = 0
@@ -335,11 +330,7 @@ class HostWorldEnv(gym.Env):
 
             # This is the un-combine action between combo[0] and combo[1]
             # Only allow to uncombine with the node table of a combined set (Is the table that is status ready)
-            if(combo[0] in combo[1].combined_with
-                    and (combo[0].status == TableStatus.COMBINED and combo[1].status == TableStatus.READY)
-                    or (combo[1].status == TableStatus.COMBINED and combo[0].status == TableStatus.READY)
-                    and combo[0].combined()
-                    and combo[1].combined()):
+            if(combo[0].can_uncombine_with(combo[1])):
                 val = 1
             else:
                 val = 0
@@ -512,7 +503,7 @@ class HostWorldEnv(gym.Env):
             table_observation = {
                 'status': table.status.value,
                 'table_size': table.size_px,
-                'table_combined_size': table.combined_size,
+                'table_combined_size': table.get_combined_size([]),
                 'party': None
             }
             if table.party:
@@ -521,8 +512,6 @@ class HostWorldEnv(gym.Env):
                     'size': party.num_people,
                     'status': party.status.value,
                     'arrival_time': int(party.arrival_time),
-                    'table_size': table.size_px,
-                    'table_combined_size': table.combined_size,
                     'reservation': {
                         'time_of_reservation': 0,
                         'reservation_status': 0,
