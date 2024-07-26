@@ -46,7 +46,7 @@ def train_sb3(env):
     # Start another cmd prompt and launch Tensorboard: tensorboard --logdir logs
     # Once Tensorboard is loaded, it will print a URL. Follow the URL to see the status of the training.
     # Stop the training when you're satisfied with the status.
-    TIMESTEPS = 1000
+    TIMESTEPS = 10000
     iters = 0
     while True:
         iters += 1
@@ -57,8 +57,8 @@ def train_sb3(env):
 def test_sb3(env,render=True):
 
     # Load model
-    model = MaskablePPO.load('models/Maskable_19000', env=env)
-    print(evaluate_policy(model, env, n_eval_episodes=20))
+    model = MaskablePPO.load('models/Maskable_90000', env=env)
+    #print(evaluate_policy(model, env, n_eval_episodes=20))
     total = 0
     for episode in range(20):
         # Run a test
@@ -73,6 +73,7 @@ def test_sb3(env,render=True):
             action, _ = model.predict(observation=obs,action_masks=actions_masks) # Turn on deterministic, so predict always returns the same behavior
             obs, reward, terminated, _, _ = env.step(action.item())
             env.render()
+            time.sleep(0.55)
             score += reward
             if terminated:
                 print(f'score {score}')
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     states = env.observation_space.shape[0]
     actions = env.action_space.n
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
-    #train_sb3(env)
+    # train_sb3(env)
     test_sb3(env)
 
     for episode in tqdm(range(episodes)):

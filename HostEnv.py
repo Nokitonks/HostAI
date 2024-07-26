@@ -129,7 +129,6 @@ class HostWorldEnv(gym.Env):
             f'table_{i}': spaces.Dict({
                 'status': spaces.Discrete(len(TableStatus)),
                 'party': party_space,
-                'table_size': spaces.Discrete(max_party_size+1),
                 'table_combined_size': spaces.Discrete(max_party_size + 1)
             }) for i in range(num_tables)
                 }),
@@ -502,7 +501,6 @@ class HostWorldEnv(gym.Env):
         for table_idx, table in enumerate(self.tables):
             table_observation = {
                 'status': table.status.value,
-                'table_size': table.size_px,
                 'table_combined_size': table.get_combined_size([]),
                 'party': None
             }

@@ -97,12 +97,21 @@ class Table(object):
         # This method works both directions so no need to check other_table.can_combine_with(self)
         assert(self.can_uncombine_with(other_table))
 
+        if self.status == TableStatus.READY and other_table.status == TableStatus.COMBINED:
+            other_table.status = TableStatus.READY
+        elif self.status == TableStatus.COMBINED and other_table.status == TableStatus.READY:
+            self.status = TableStatus.READY
+        else:
+            """ 
+            They are both combined so need to see where the head node is along the chain
+            """
+            if self.has_ready_node([other_table]):
+                other_table.status = TableStatus.READY
+            else:
+                self.status = TableStatus.READY
 
         self.combined_with.remove(other_table)
         other_table.combined_with.remove(self)
-
-        self.status = TableStatus.READY
-        other_table.status = TableStatus.READY
 
         return 0 ,False
 
@@ -114,11 +123,18 @@ class Table(object):
         # This method works both directions so no need to check other_table.can_combine_with(self)
         assert(self.can_combine_with(other_table))
 
-        if len(other_table.combined_with) > len(self.combined_with):
-           self.status = TableStatus.COMBINED
-        else:
+        # If two ready tables get combined we only make one combined
+        if self.status == TableStatus.READY and other_table.status == TableStatus.READY:
             other_table.status = TableStatus.COMBINED
 
+        elif self.status == TableStatus.READY:
+            self.status = TableStatus.COMBINED
+        elif other_table.status == TableStatus.READY:
+            other_table.status = TableStatus.COMBINED
+
+        # Otherwise both are combined so need to update one of the READY nodes to OCCUPIED
+        else:
+            self.change_ready_node(TableStatus.COMBINED,[])
 
         self.combined_with.append(other_table)
         other_table.combined_with.append(self)
@@ -146,12 +162,10 @@ class Table(object):
         :param other_table: The other table to check.
         :return: True if combinable, False otherwise.
         """
-        # Tables are not proper status to be uncombined (One needs to be combined and one ready)
-        if not (self.status == TableStatus.READY and other_table.status == TableStatus.COMBINED)\
-                and not (self.status == TableStatus.COMBINED and other_table.status == TableStatus.READY):
-            return False
 
-        if other_table not in self.combined_with or self not in other_table.combined_with:
+        if not self.has_ready_node([]):
+            return False
+        if other_table not in self.combined_with or other_table not in self.combined_with:
             return False
 
         return True
@@ -163,16 +177,52 @@ class Table(object):
         :param other_table: The other table to check.
         :return: True if combinable, False otherwise.
         """
-        # Tables are not proper status to be combined (Must both be of status READY)
-        if self.status != TableStatus.READY or other_table.status != TableStatus.READY:
+        # Make sure both table structures head nodes are READY
+        if not self.has_ready_node([]) or not other_table.has_ready_node([]):
             return False
 
-        # Tables have already been combined which should never happen
-        if other_table in self.combined_with or self in other_table.combined_with:
-            raise (ValueError,"Trying to combine tables with wrong status and already combined")
+        # Tables have already been combined
+        if self.is_connected_to(other_table,[]) or other_table.is_connected_to(self,[]):
             return False
 
         return other_table in self.combinable_with and self in other_table.combinable_with
+
+    def is_connected_to(self,other_table,seen_tables=[]):
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table == other_table:
+                return True
+            seen_tables.append(self)
+            if table.is_connected_to(other_table,seen_tables):
+                return True
+        return False
+
+    def change_ready_node(self,status,seen_tables=[]):
+        if self.status == TableStatus.READY:
+            return True
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table.status == TableStatus.READY:
+                table.status = status
+                return True
+            seen_tables.append(self)
+            return table.has_ready_node(seen_tables)
+        return False
+
+    def has_ready_node(self,seen_tables=[]):
+
+        if self.status == TableStatus.READY:
+            return True
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table.status == TableStatus.READY:
+                return True
+            seen_tables.append(self)
+            return table.has_ready_node(seen_tables)
+        return False
 
     def get_combined_size(self,seen_tables=[]):
 
