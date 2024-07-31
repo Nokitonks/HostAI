@@ -4,10 +4,31 @@ from datetime import datetime, timedelta
 import pygame
 # Game manager to handle screen switching
 # Base class for screens
+class LevelSettings(object):
+    def __init__(self,tables,max_party_size,max_time,max_wait_list,max_res_list,combinable_tables):
+        """
+        :param tables: setup of the tables
+        :param max_party_size: The maximum num of people in one given party
+        :param max_time: the length of the level in time units
+        :param max_wait_list: how long the maximum wait_list can be
+        :param max_res_list:  how long the maximum reservation list can be
+        :param combinable_tables: list of tuples of tables that can be combined
+        """
+        self.tables = tables
+        self.max_party_size = max_party_size
+        self.max_time = max_time
+        self.max_wait_list = max_wait_list
+        self.max_res_list = max_res_list
+        for tuple in combinable_tables:
+            tuple[0].make_combinable_with(tuple[1])
+
+
+
 class TableStatus(Enum):
     READY = 0
     DIRTY = 1
     OCCUPIED = 2
+    COMBINED = 3
 
 class Table(object):
     def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
@@ -36,16 +57,118 @@ class Table(object):
         self.desirability = desirability  # Integer (0-10)
         self.type = type  # String
         self.combinable_with = combinable_with  # List of Table objects
+        self.combined_with = []  # set of Table objects
         self.party = party  # Party object
         self.status = status  # Table status enum
         self.clean_time = clean_time
         self.clean_progress = clean_progress
+
 
     def __repr__(self):
         return (f"Table(footprint={self.footprint}, size_px={self.size_px}, "
                 f" desirability={self.desirability}, "
                 f"type='{self.type}', combinable_with={self.combinable_with}, "
                 f"party={self.party})")
+
+    def __lt__(self, other):
+        return id(self) < id(other)
+
+    def __gt__(self, other):
+        return id(self) > id(other)
+
+    def __eq__(self, other):
+        return id(self) == id(other)
+
+    def reset(self):
+        self.status = TableStatus.READY
+        self.combined_with = []
+
+    def combined(self):
+        """
+        :return: returns true if combined and false otherwise
+        """
+        return len(self.combined_with) != 0
+
+    def uncombine_with(self,other_table):
+        """
+        :param other_table: table to take apart from
+        :return: reward for the action and done variable
+        """
+        # This method works both directions so no need to check other_table.can_combine_with(self)
+        assert(self.can_uncombine_with(other_table))
+
+        if self.status == TableStatus.READY and other_table.status == TableStatus.COMBINED:
+            other_table.status = TableStatus.READY
+        elif self.status == TableStatus.COMBINED and other_table.status == TableStatus.READY:
+            self.status = TableStatus.READY
+        else:
+            """ 
+            They are both combined so need to see where the head node is along the chain
+            """
+            if self.has_ready_node([other_table]):
+                other_table.status = TableStatus.READY
+            else:
+                self.status = TableStatus.READY
+
+        self.combined_with.remove(other_table)
+        other_table.combined_with.remove(self)
+
+        return 0 ,False
+
+    def combine_with(self,other_table):
+        """
+        :param other_table: table to combine with
+        :return: None
+        """
+        # This method works both directions so no need to check other_table.can_combine_with(self)
+        assert(self.can_combine_with(other_table))
+
+        # If two ready tables get combined we only make one combined
+        if self.status == TableStatus.READY and other_table.status == TableStatus.READY:
+            other_table.status = TableStatus.COMBINED
+
+        elif self.status == TableStatus.READY:
+            self.status = TableStatus.COMBINED
+        elif other_table.status == TableStatus.READY:
+            other_table.status = TableStatus.COMBINED
+
+        # Otherwise both are combined so need to update one of the READY nodes to OCCUPIED
+        else:
+            self.change_ready_node(TableStatus.COMBINED,[])
+
+        self.combined_with.append(other_table)
+        other_table.combined_with.append(self)
+
+        return 0 ,False
+
+    def make_combinable_with(self, other_table):
+
+        if other_table not in self.combinable_with:
+            self.combinable_with.append(other_table)
+        if self not in other_table.combinable_with:
+            other_table.combinable_with.append(self)
+
+    def make_uncombinable_with(self, other_table):
+
+        if other_table in self.combinable_with:
+            self.combinable_with.remove(other_table)
+        if self in other_table.combinable_with:
+            other_table.combinable_with.remove(self)
+
+    def can_uncombine_with(self, other_table):
+        """
+        Check if this table can un-combine with another table.
+
+        :param other_table: The other table to check.
+        :return: True if combinable, False otherwise.
+        """
+
+        if not self.has_ready_node([]):
+            return False
+        if other_table not in self.combined_with or other_table not in self.combined_with:
+            return False
+
+        return True
 
     def can_combine_with(self, other_table):
         """
@@ -54,7 +177,64 @@ class Table(object):
         :param other_table: The other table to check.
         :return: True if combinable, False otherwise.
         """
-        return other_table in self.combinable_with
+        # Make sure both table structures head nodes are READY
+        if not self.has_ready_node([]) or not other_table.has_ready_node([]):
+            return False
+
+        # Tables have already been combined
+        if self.is_connected_to(other_table,[]) or other_table.is_connected_to(self,[]):
+            return False
+
+        return other_table in self.combinable_with and self in other_table.combinable_with
+
+    def is_connected_to(self,other_table,seen_tables=[]):
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table == other_table:
+                return True
+            seen_tables.append(self)
+            if table.is_connected_to(other_table,seen_tables):
+                return True
+        return False
+
+    def change_ready_node(self,status,seen_tables=[]):
+        if self.status == TableStatus.READY:
+            return True
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table.status == TableStatus.READY:
+                table.status = status
+                return True
+            seen_tables.append(self)
+            return table.has_ready_node(seen_tables)
+        return False
+
+    def has_ready_node(self,seen_tables=[]):
+
+        if self.status == TableStatus.READY:
+            return True
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            if table.status == TableStatus.READY:
+                return True
+            seen_tables.append(self)
+            return table.has_ready_node(seen_tables)
+        return False
+
+    def get_combined_size(self,seen_tables=[]):
+
+        sum = self.size_px
+        for table in self.combined_with:
+            if table in seen_tables:
+                continue
+            new_seen = seen_tables
+            new_seen.append(self)
+            sum += table.get_combined_size(new_seen)
+        return sum
+
 
     def is_available(self):
         """
@@ -73,6 +253,10 @@ class Table(object):
         self.party = party
         self.update_party_status(PartyStatus.SEATED)
         self.status = TableStatus.OCCUPIED
+
+        # Update the status of all other tables in our combined table
+        for table in self.combined_with:
+            table.status = TableStatus.COMBINED
 
     def remove_party(self):
         """
@@ -136,9 +320,7 @@ class Party(object):
 
 
     def __repr__(self):
-        return (f"Party(num_people={self.num_people}, reservation={self.reservation}, checks={self.checks}, "
-                f"status={self.status}, arrival_time='{self.arrival_time}', sat_time='{self.sat_time}', "
-                f"leave_time='{self.leave_time}', happiness={self.happiness})")
+        return (f"Party(num_people={self.num_people}, name={self.name})")
 
     def update_status(self, new_status):
         """
