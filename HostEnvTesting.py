@@ -105,7 +105,6 @@ if __name__ == "__main__":
         'wait_tolerance': 50
     }
     env = HostWorldEnv(config)
-
     episodes = 20
     env = FlattenObservation(env)
     states = env.observation_space.shape[0]

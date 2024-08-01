@@ -9,10 +9,11 @@ from ClassDefinitions import *
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self,config, render_mode='human'):
+    def __init__(self,immutable_config,mutable_config):
 
         super(HostWorldEnv, self).__init__()
-        self.config = config
+        self.immutable_config = immutable_config
+        self.mutable_config = mutable_config
         """
         Agent section
         """
@@ -30,7 +31,7 @@ class HostWorldEnv(gym.Env):
          full table etc.)
         """
         # The list containing tables objects to setup the grid of tables
-        self.tables = config['level_settings'].tables
+        self.tables = self.immutable_config['level_settings'].tables
 
 
 
@@ -94,19 +95,20 @@ class HostWorldEnv(gym.Env):
                 Reservation Status -> Discrete
         """
 
-        self.observation_space = self.create_observation_space(len(self.tables), config['level_settings'].max_party_size
-                                                               , config['level_settings'].max_time,
-                                                               config['level_settings'].max_wait_list,
-                                                               config['level_settings'].max_res_list)
+        self.observation_space = self.create_observation_space(len(self.tables), self.immutable_config['level_settings'].max_party_size
+                                                               , self.immutable_config['level_settings'].max_time,
+                                                               self.immutable_config['level_settings'].max_wait_list,
+                                                               self.immutable_config['level_settings'].max_res_list)
         self.state = None
         self.reset()
 
         # Setup Pygame
         pygame.init()
-        self.screen = pygame.display.set_mode(self.config['window_size'])
+        self.screen = pygame.display.set_mode(self.mutable_config['window_size'])
         pygame.display.set_caption("Restaurant Environment")
         self.font = pygame.font.SysFont(None, 24)
-
+    def set_mutable_config(self,config):
+        self.mutable_config = config
     def create_observation_space(self,num_tables, max_party_size, max_time, max_wait_list, max_reservation_list):
 
         reservation_space = spaces.Dict({
@@ -211,14 +213,14 @@ class HostWorldEnv(gym.Env):
         self.SCREEN_WIDTH = 800
         self.SCREEN_HEIGHT = 600
         self.start_time = 0
-        self.end_time = self.config['max_time']
-        self.window_size = self.config['window_size'] # The size of the Pygame Window
-        self.GRID_SIZE = self.config['grid_size']  # Size of the grid cells
+        self.end_time = self.mutable_config['max_time']
+        self.window_size = self.mutable_config['window_size'] # The size of the Pygame Window
+        self.GRID_SIZE = self.mutable_config['grid_size']  # Size of the grid cells
         self.ROWS = self.window_size[1] // self.GRID_SIZE
         self.COLS = self.window_size[0] // self.GRID_SIZE
 
         self.party_pool_manager = PartyPoolManager(4,[2,4,6,8])
-        self.clean_time = self.config['clean_time']
+        self.clean_time = self.mutable_config['clean_time']
 
         self.TABLE_SECTION = pygame.Rect(self.window_size[0] // 4, 0, self.window_size[0], self.window_size[1])
         self.PARTY_SECTION = pygame.Rect(0, 0, self.window_size[0] // 4, self.window_size[1])
@@ -346,7 +348,7 @@ class HostWorldEnv(gym.Env):
         """
 
         for party in self.waitlist:
-            if self.universal_clock.current_time - (int(party.arrival_time)) >= self.config['wait_tolerance']:
+            if self.universal_clock.current_time - (int(party.arrival_time)) >= self.mutable_config['wait_tolerance']:
                 self.waitlist.remove(party)
                 self.party_pool_manager.find_pool_for_size(party.num_people).remove(party)
                 return -party.num_people
@@ -546,14 +548,14 @@ class HostWorldEnv(gym.Env):
             if party.reservation:
                 observation['waitlist'][-1]['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)
                 observation['waitlist'][-1]['reservation']['reservation_status'] = party.reservation.status.value
-        while len(observation['waitlist']) < self.config['max_wait_list']:
+        while len(observation['waitlist']) < self.immutable_config['max_wait_list']:
             observation['waitlist'].append(dummy_party)
         for reservation in self.reservations:
             observation['reservation_list'].append({
                 'time_of_reservation': int(reservation.reservation_time),
                 'reservation_status': reservation.status.value
             })
-        while len(observation['reservation_list']) < self.config['max_reservation_list']:
+        while len(observation['reservation_list']) < self.immutable_config['max_reservation_list']:
             observation['reservation_list'].append(dummy_reservation)
 
         return observation

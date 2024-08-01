@@ -10,6 +10,7 @@ def create_scaled_rect(original_rect, percentage):
     :param percentage: The percentage of the original rectangle's size (e.g., 50 for 50%).
     :return: A new pygame.Rect that is scaled and centered within the original rectangle.
     """
+
     # Ensure the percentage is in the range [0, 100]
     if percentage < 0 or percentage > 100:
         raise ValueError("Percentage must be between 0 and 100")
