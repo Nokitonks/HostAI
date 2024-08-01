@@ -9,7 +9,7 @@ from ClassDefinitions import *
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
-    def __init__(self,immutable_config,mutable_config):
+    def __init__(self,immutable_config,mutable_config=None):
 
         super(HostWorldEnv, self).__init__()
         self.immutable_config = immutable_config
@@ -104,9 +104,10 @@ class HostWorldEnv(gym.Env):
 
         # Setup Pygame
         pygame.init()
-        self.screen = pygame.display.set_mode(self.mutable_config['window_size'])
+        self.screen = pygame.display.set_mode(self.immutable_config['window_size'])
         pygame.display.set_caption("Restaurant Environment")
         self.font = pygame.font.SysFont(None, 24)
+
     def set_mutable_config(self,config):
         self.mutable_config = config
     def create_observation_space(self,num_tables, max_party_size, max_time, max_wait_list, max_reservation_list):
