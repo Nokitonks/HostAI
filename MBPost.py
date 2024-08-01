@@ -74,6 +74,7 @@ table1 = Table(((1, 1), (2, 2)), 2, 8, 'regular table', [], None, TableStatus.RE
 table2 = Table(((3, 3), (4, 4)), 2, 8, 'regular table', [], None, TableStatus.READY)
 table3 = Table(((5, 5), (6, 6)), 2, 8, 'regular table', [], None, TableStatus.READY)
 table4 = Table(((7, 7), (8, 8)), 2, 8, 'regular table', [], None, TableStatus.READY)
+
 SMALL_TABLES = [
     table1,table2,table3,table4
 ]

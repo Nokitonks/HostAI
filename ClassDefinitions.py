@@ -285,7 +285,7 @@ class PartyStatus(Enum):
 
 
 class Party(object):
-    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
+    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time,meal_split):
         """
         :param name: The name of the party specified as a string
 
@@ -306,6 +306,8 @@ class Party(object):
         :param happiness: Rating of 1-10 based on how close the quoted wait time was to the actual time to seat
 
         :param dine_time: string representing how long it will take this party to eat their meal represented in minutes
+
+        :param meal_split: string of form - "a:b:c:d:e" where a is time it takes in state 1 (SEATED) and e is state 5 (CHECK_DROPPED) in the form of percentages of total dine_time
         """
         self.name = name # String
         self.num_people = num_people  # Integer
@@ -317,6 +319,7 @@ class Party(object):
         self.leave_time = leave_time  # String
         self.happiness = happiness  # Integer (1-10)
         self.dine_time = dine_time  #  Integer (minutes)
+        self.meal_split = meal_split # String (a:b:c:d:e)
 
 
     def __repr__(self):
@@ -329,6 +332,33 @@ class Party(object):
         :param new_status: The new status to update to, should be a value from PartyStatus.
         """
         self.status = PartyStatus(new_status)
+
+    def update_seated_status(self,seated_time):
+        """
+        Updates the status to reflect the meal_split numbers
+        :return: new status the party was changed to
+        """
+        # Our range is from 0 to dine_time
+        time_counter = 0
+        time_max = self.dine_time
+
+        #This is the range of indexes in the PartyStatus enum we want to capture
+        status_index = [2,3,4,5,6]
+
+        values = self.meal_split.split(":")
+        for index, val in enumerate(values):
+            percentage = float(val) / 100
+            time_counter += percentage * time_max
+            if seated_time <= time_counter:
+                new_status = PartyStatus(status_index[index])
+                self.update_status(new_status)
+                return new_status
+
+        self.update_status(PartyStatus.CHECK_DROPPED)
+        return PartyStatus.CHECK_DROPPED
+
+
+
 
     def calculate_wait_time(self):
         """
@@ -373,7 +403,7 @@ class Party(object):
 
 
 class Reservation(object):
-    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time):
+    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time,meal_split):
         """
         :param party_name: The name of the party making the reservation, specified as a String
 
@@ -394,6 +424,7 @@ class Reservation(object):
         self.special_requests = special_requests  # String
         self.status = ReservationStatus(status)  # ReservationStatus enum
         self.dine_time = dine_time
+        self.meal_split = meal_split
 
     def __repr__(self):
         return (f"Reservation(party_name='{self.party_name}', num_people={self.num_people}, "
@@ -443,7 +474,7 @@ class ReservationStatus(Enum):
     PENDING = 0
     CONFIRMED = 1
     SEATED = 2
-    CANCELLED = 3
+    CANCELED = 3
 
 
 class Check(object):

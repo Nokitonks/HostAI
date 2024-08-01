@@ -93,6 +93,10 @@ if __name__ == "__main__":
                                          (SMALL_TABLES[1],SMALL_TABLES[2]))
                                          ),
         'max_party_size' : 8,
+        'clean_time':{2:1,
+                      4:10,
+                      6:20,
+                      8:20},
         'max_time': 220,
         'max_wait_list': 30,
         'max_reservation_list' : 30,
@@ -108,7 +112,7 @@ if __name__ == "__main__":
     actions = env.action_space.n
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
     # train_sb3(env)
-    test_sb3(env)
+    # test_sb3(env)
 
     for episode in tqdm(range(episodes)):
         state, info = env.reset()
@@ -135,7 +139,7 @@ if __name__ == "__main__":
 
             state = observation
             score += reward
-
+            time.sleep(0.5)
             # update the agent
             env.render()
         print(f"Episode{episode}: score {score}")

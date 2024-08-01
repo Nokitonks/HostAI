@@ -218,6 +218,7 @@ class HostWorldEnv(gym.Env):
         self.COLS = self.window_size[0] // self.GRID_SIZE
 
         self.party_pool_manager = PartyPoolManager(4,[2,4,6,8])
+        self.clean_time = self.config['clean_time']
 
         self.TABLE_SECTION = pygame.Rect(self.window_size[0] // 4, 0, self.window_size[0], self.window_size[1])
         self.PARTY_SECTION = pygame.Rect(0, 0, self.window_size[0] // 4, self.window_size[1])
@@ -246,7 +247,7 @@ class HostWorldEnv(gym.Env):
         for reservation in reservations:
             party = Party(reservation.party_name,reservation.num_people, reservation, None,
                           PartyStatus.NONE, reservation.reservation_time,None, None,
-                          None,reservation.dine_time)
+                          None,reservation.dine_time,reservation.meal_split)
             self.walk_ins.append(party)
 
         self.universal_clock = UniversalClock(self.start_time,1)
@@ -259,7 +260,7 @@ class HostWorldEnv(gym.Env):
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
                 reservation = Reservation(row['name'], int(row['num_people']), row['reservation_time'], "",
-                                          "", ReservationStatus[row['status']],int(row['dine_time']))
+                                          "", ReservationStatus[row['status']],int(row['dine_time']),row['meal_split'])
                 reservations.append(reservation)
         return reservations
 
@@ -270,7 +271,7 @@ class HostWorldEnv(gym.Env):
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
                 party = Party(row['name'],int(row['num_people']), None, None, PartyStatus.NONE,
-                              row['arrival_time'], None, None, None, int(row['dine_time']))
+                              row['arrival_time'], None, None, None, int(row['dine_time']),row['meal_split'])
 
                 walk_ins.append(party)
         return walk_ins
@@ -354,6 +355,13 @@ class HostWorldEnv(gym.Env):
     def update_arrivals(self):
 
         for party in self.walk_ins:
+
+            # Remove parties that have a canceled reservation
+            if party.reservation:
+                if party.reservation.status == ReservationStatus.CANCELED:
+                    self.walk_ins.remove(party)
+                    continue
+
             clock_min = self.universal_clock.current_time
             arrival_min = int(party.arrival_time)
             if arrival_min <= clock_min:
@@ -380,9 +388,11 @@ class HostWorldEnv(gym.Env):
                     self.served.append(table.party)
                     table.remove_party()
                     table.status = TableStatus.DIRTY
+                else:
+                    _ = table.party.update_seated_status(time_seated)
 
             elif table.status == TableStatus.DIRTY:
-                if table.clean_progress >= table.clean_time:
+                if table.clean_progress >= self.clean_time[table.get_combined_size([])]:
                     table.clean_progress = 0
                     table.status = TableStatus.READY
                 else:
