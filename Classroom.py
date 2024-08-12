@@ -61,7 +61,7 @@ class Lesson(object):
         self.render = render
         self.max_ep_trials = max_ep_trials
         self.trial_length = trial_length
-        self.lesson_stats = LessonStats()
+        self.lesson_stats = LessonStats(episodes_stats=[])
 
     def run_lesson(self,model):
 
@@ -82,12 +82,9 @@ class Lesson(object):
                 break
 
         #Time for the final EXAM, only get to try this one once
-        mean,std = evaluate_policy(model,self.exam.env,1)
-        #Add other statistics
-        percentage_of_max_score = mean / self.max_score * 100
-        trail_stats = TrialStats(mean,std,percentage_of_max_score)
+        self.exam.add_trial_stats(model)
 
-        self.lesson_stats.exam_stats = trail_stats
+        self.lesson_stats.exam_stats = self.exam.stats.trial_stats[0]
         return self.lesson_stats
 
 
@@ -111,6 +108,7 @@ class Episode(object):
         self.stats = EpisodeStats()
         self.eval_iters = eval_iters
         self.passing_score = passing_score
+        self.passed = False
 
 
     def run_trial(self,model,timesteps,verbose=0):
@@ -143,18 +141,23 @@ class Episode(object):
 
         #Add other statistics
         percentage_of_max_score = mean / self.max_score * 100
-        trail_stats = TrialStats(mean,std,percentage_of_max_score)
 
-        self.stats.trial_stats.append(trail_stats)
-        if mean > self.passing_score:
+        if mean >= self.passing_score:
             self.passed = True
+        else:
+            self.passed = False
+        trail_stats = TrialStats(mean,std,percentage_of_max_score,self.passed)
+        self.stats.trial_stats.append(trail_stats)
+
 
 class TrialStats(object):
 
-    def __init__(self,mean_reward,std_reward,percentage_of_max_score):
+    def __init__(self,mean_reward,std_reward,percentage_of_max_score,passed):
         self.mean_reward = mean_reward
         self.mean_std = std_reward
         self.percentage_of_max_score = percentage_of_max_score
+        self.passed = passed
+        assert percentage_of_max_score > 0 and percentage_of_max_score <= 100
 
 class LessonStats(object):
 
@@ -168,7 +171,6 @@ class LessonStats(object):
 class EpisodeStats(object):
 
     def __init__(self):
-        self.passed = False
         self.trial_stats = []
 
 
