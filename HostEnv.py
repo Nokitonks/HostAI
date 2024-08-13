@@ -31,7 +31,7 @@ class HostWorldEnv(gym.Env):
          full table etc.)
         """
         # The list containing tables objects to setup the grid of tables
-        self.tables = self.immutable_config['level_settings'].tables
+        self.tables = self.immutable_config['tables']
 
 
 
@@ -95,10 +95,10 @@ class HostWorldEnv(gym.Env):
                 Reservation Status -> Discrete
         """
 
-        self.observation_space = self.create_observation_space(len(self.tables), self.immutable_config['level_settings'].max_party_size
-                                                               , self.immutable_config['level_settings'].max_time,
-                                                               self.immutable_config['level_settings'].max_wait_list,
-                                                               self.immutable_config['level_settings'].max_res_list)
+        self.observation_space = self.create_observation_space(len(self.tables), self.immutable_config['max_party_size']
+                                                               , self.immutable_config['max_time'],
+                                                               self.immutable_config['max_wait_list'],
+                                                               self.immutable_config['max_res_list'])
         self.state = None
         self.reset()
 
@@ -214,9 +214,9 @@ class HostWorldEnv(gym.Env):
         self.SCREEN_WIDTH = 800
         self.SCREEN_HEIGHT = 600
         self.start_time = 0
-        self.end_time = self.mutable_config['max_time']
-        self.window_size = self.mutable_config['window_size'] # The size of the Pygame Window
-        self.GRID_SIZE = self.mutable_config['grid_size']  # Size of the grid cells
+        self.end_time = self.immutable_config['max_time']
+        self.window_size = self.immutable_config['window_size'] # The size of the Pygame Window
+        self.GRID_SIZE = self.immutable_config['grid_size']  # Size of the grid cells
         self.ROWS = self.window_size[1] // self.GRID_SIZE
         self.COLS = self.window_size[0] // self.GRID_SIZE
 
@@ -241,10 +241,10 @@ class HostWorldEnv(gym.Env):
         self.served = []
 
         # Beginning of game we read in the reservations and walk-ins for the evening
-        reservations = self.read_reservations('reservation_files/reservations0.csv')
+        reservations = self.read_reservations(self.mutable_config['reservations_path'])
         self.reservations = sorted(reservations, key=lambda  x: x.reservation_time)
 
-        self.walk_ins = self.read_walk_ins('walk_in_files/walk_ins.csv')
+        self.walk_ins = self.read_walk_ins(self.mutable_config['walk_ins_path'])
 
         # Convert reservations to have their own party object tied to the reservation
         for reservation in reservations:
@@ -556,7 +556,7 @@ class HostWorldEnv(gym.Env):
                 'time_of_reservation': int(reservation.reservation_time),
                 'reservation_status': reservation.status.value
             })
-        while len(observation['reservation_list']) < self.immutable_config['max_reservation_list']:
+        while len(observation['reservation_list']) < self.immutable_config['max_res_list']:
             observation['reservation_list'].append(dummy_reservation)
 
         return observation

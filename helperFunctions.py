@@ -1,5 +1,6 @@
 import pygame
-
+import numpy as np
+import gymnasium as gym
 
 def create_scaled_rect(original_rect, percentage):
     """
@@ -50,3 +51,9 @@ def get_max_font_size(text, max_width, max_height, base_font_size):
         text_width, text_height = font.size(text)
 
     return font
+
+def mask_fn(env: gym.Env) -> np.ndarray:
+    # Do whatever you'd like in this function to return the action mask
+    # for the current env. In this example, we assume the env has a
+    # helpful method we can rely on.
+    return env.get_action_mask()

@@ -75,16 +75,21 @@ class Lesson(object):
                 episode.run_trial(model,timesteps=self.trial_length,verbose=self.verbose)
                 if not episode.passed:
                     episode_tries += 1
+                    if self.verbose > 0:
+                        print(f"Have failed episode, trying again")
                     continue
 
                 #Append stats to our lesson stats
                 self.lesson_stats.episodes_stats.append(episode.stats)
                 break
 
+        if self.verbose > 0: print("Made it to final exam...")
         #Time for the final EXAM, only get to try this one once
         self.exam.add_trial_stats(model)
 
         self.lesson_stats.exam_stats = self.exam.stats.trial_stats[0]
+        if self.verbose > 0:
+            print(self.lesson_stats.exam_stats.mean_reward)
         return self.lesson_stats
 
 
@@ -157,7 +162,6 @@ class TrialStats(object):
         self.mean_std = std_reward
         self.percentage_of_max_score = percentage_of_max_score
         self.passed = passed
-        assert percentage_of_max_score > 0 and percentage_of_max_score <= 100
 
 class LessonStats(object):
 
