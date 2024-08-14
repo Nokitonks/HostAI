@@ -17,23 +17,24 @@ def create_curriculum(env):
     :return: Curriculum object that has lessons made for learning to seat parties at correctly sized tables
     """
 
-    table_size_lesson = Lesson("Table Size Lesson",[],None,10,1000,verbose=1)
+    table_size_lesson = Lesson("Table Size Lesson",[],None,5,1000,verbose=1)
     passing_percentage = 90
     episode_settings = {
-        "clean_time":{2:1,
-                      4:10,
-                      6:20,
-                      8:20},
+        "clean_time":{2:5,
+                      4:5,
+                      6:5,
+                      8:5},
         "wait_tolerance":10,
-        "reservations_path":'reservation_files/reservations(1).csv',
+        "reservations_path":'reservation_files/reservations0.csv',
+        "log_dir":'',
         'walk_ins_path':'walk_in_files/walk_ins(1).csv'
     }
-    episode_1 = Episode(episode_settings,22,12,env)
+    episode_1 = Episode(episode_settings,264,250,env)
     table_size_lesson.episodes.append(episode_1)
-    episode_2 = Episode(episode_settings,22,15,env)
+    episode_settings['log_dir'] = "."
+    episode_2 = Episode(episode_settings,264,250,env)
     table_size_lesson.exam = episode_2
-
-    model = MaskablePPO('MlpPolicy', env, verbose=1, device='cuda')
+    model = MaskablePPO('MlpPolicy', env, verbose=1, device='mps', tensorboard_log="logs")
     table_size_lesson.run_lesson(model)
 
 def run_random_episode(render=True,sleep=0.1):
@@ -86,7 +87,8 @@ if __name__ == "__main__":
                       6:20,
                       8:20},
         "wait_tolerance":10,
-        "reservations_path": 'reservation_files/reservations(1).csv',
+        "reservations_path": 'reservation_files/reservations0.csv',
+        "log_dir":'',
         'walk_ins_path': 'walk_in_files/walk_ins(1).csv'
     }
 

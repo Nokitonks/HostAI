@@ -6,6 +6,7 @@ import numpy as np
 import pygame
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
+from tqdm import tqdm
 
 class Curriculum(object):
     def __init__(self, lessons, model, model_save_dir, verbose=0, render=False, render_settings=None):
@@ -66,7 +67,7 @@ class Lesson(object):
     def run_lesson(self,model):
 
         # Loop through each episode in the lesson
-        for episode in self.episodes:
+        for episode in tqdm(self.episodes):
 
             #Get the stats for the episode
             episode_tries = 0
@@ -143,7 +144,7 @@ class Episode(object):
 
     def add_trial_stats(self,model):
         mean, std = evaluate_policy(model,self.env,self.eval_iters)
-
+        print(f"Scored {mean} on evaluation. Std = {std}\n")
         #Add other statistics
         percentage_of_max_score = mean / self.max_score * 100
 

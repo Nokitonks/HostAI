@@ -5,7 +5,8 @@ from helperFunctions import *
 import gymnasium as gym
 from gymnasium import spaces
 from ClassDefinitions import *
-
+import logging
+import sys
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
@@ -14,6 +15,11 @@ class HostWorldEnv(gym.Env):
         super(HostWorldEnv, self).__init__()
         self.immutable_config = immutable_config
         self.mutable_config = mutable_config
+        logging.basicConfig(filename="logs/Model_testing.txt",
+                                filemode='w',
+                                format='%(asctime)s %(levelname)s-%(message)s',
+                                datefmt='%Y-%m-%d %H:%M:%S',
+                                level=logging.INFO)
         """
         Agent section
         """
@@ -110,6 +116,7 @@ class HostWorldEnv(gym.Env):
 
     def set_mutable_config(self,config):
         self.mutable_config = config
+
     def create_observation_space(self,num_tables, max_party_size, max_time, max_wait_list, max_reservation_list):
 
         reservation_space = spaces.Dict({
@@ -293,6 +300,8 @@ class HostWorldEnv(gym.Env):
         party.sat_time = self.universal_clock.current_time
 
         reward = party.num_people
+        if self.mutable_config['log_dir'] != "":
+            logging.info(f"Party {party.name} of size {party.num_people} has been seated at t={self.universal_clock.current_time}\n")
         # Needs to return a reward and a done
         return reward, False
 
@@ -352,6 +361,8 @@ class HostWorldEnv(gym.Env):
             if self.universal_clock.current_time - (int(party.arrival_time)) >= self.mutable_config['wait_tolerance']:
                 self.waitlist.remove(party)
                 self.party_pool_manager.find_pool_for_size(party.num_people).remove(party)
+                if self.mutable_config['log_dir'] != "":
+                    logging.info(f"Party {party.name} of size {party.num_people} Left at {self.universal_clock.current_time}\n")
                 return -party.num_people
         return 0
 
