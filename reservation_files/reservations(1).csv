@@ -1,0 +1,6 @@
+num_people,reservation_time,name,dine_time,meal_split,status
+4,45,Susan Baker,20,10:20:20:40:10,CONFIRMED
+4,90,Michael Bradford,20,10:20:20:40:10,CONFIRMED
+4,210,Adrienne Bell,20,10:20:20:40:10,CONFIRMED
+4,225,Emily White,20,10:20:20:40:10,CONFIRMED
+6,60,Alan Williams,20,10:20:20:40:10,CONFIRMED
