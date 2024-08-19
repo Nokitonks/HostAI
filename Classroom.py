@@ -102,7 +102,7 @@ class Lesson(object):
 """
 class Episode(object):
 
-    def __init__(self,episode_settings,max_score,passing_score,env,eval_iters=10):
+    def __init__(self,episode_settings,max_score,passing_score,env,eval_iters=2):
         """
         :param episode_settings: Episode settings, must be equivalent to env.mutable_config
         :param max_score: the maximum possible score of the episode
@@ -139,7 +139,7 @@ class Episode(object):
         We want the model to learn until it passes a certain amount of score.
         If model has not surpassed the passing score, we will give up but put a flag for the episode
         """
-        model.learn(total_timesteps=timesteps, reset_num_timesteps=False)  # train
+        model.learn(total_timesteps=timesteps, reset_num_timesteps=True)  # train
         self.add_trial_stats(model)
 
     def add_trial_stats(self,model):

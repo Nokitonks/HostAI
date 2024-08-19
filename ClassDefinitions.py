@@ -113,7 +113,7 @@ class Table(object):
         self.combined_with.remove(other_table)
         other_table.combined_with.remove(self)
 
-        return 0 ,False
+        return -1 ,False
 
     def combine_with(self,other_table):
         """
@@ -139,7 +139,7 @@ class Table(object):
         self.combined_with.append(other_table)
         other_table.combined_with.append(self)
 
-        return 0 ,False
+        return -1 ,False
 
     def make_combinable_with(self, other_table):
 

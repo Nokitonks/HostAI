@@ -155,12 +155,14 @@ class HostWorldEnv(gym.Env):
         # Default action means action will be None
 
         # Call the handler function for the action with parameters
+        if self.mutable_config['log_dir'] != '':
+            logging.info(f"Taking action {self.action_handlers[action]}")
         handler, params = self.action_handlers[action]
         reward, done = handler(**params)
-
+        if (reward == -1):
+            self.universal_clock.update()
         # For debugging etc purposes
         info = {}
-        self.universal_clock.update()
         reward += self.update_tables()
         self.update_arrivals()
         reward += self.update_parties()
@@ -221,7 +223,7 @@ class HostWorldEnv(gym.Env):
         self.SCREEN_WIDTH = 800
         self.SCREEN_HEIGHT = 600
         self.start_time = 0
-        self.end_time = self.immutable_config['max_time']
+        self.end_time = self.mutable_config['end_time']
         self.window_size = self.immutable_config['window_size'] # The size of the Pygame Window
         self.GRID_SIZE = self.immutable_config['grid_size']  # Size of the grid cells
         self.ROWS = self.window_size[1] // self.GRID_SIZE
@@ -287,6 +289,7 @@ class HostWorldEnv(gym.Env):
         return walk_ins
 
     def default_action(self):
+        self.universal_clock.update()
         return 0, False
 
     def assign_party_to_table(self,party_pool,table_index):

@@ -16,8 +16,8 @@ class BasicRestaurantTables(object):
         table8 = Table(((8, 7), (9, 8)), 2, 8, 'regular table', [], None, TableStatus.READY)
 
         # 10 and 11 tables
-        table10 = Table(((4, 2), (6, 4)), 2, 8, 'regular table', [], None, TableStatus.READY)
-        table11 = Table(((4, 5), (6, 7)), 2, 8, 'regular table', [], None, TableStatus.READY)
+        table10 = Table(((4, 2), (6, 4)), 4, 8, 'regular table', [], None, TableStatus.READY)
+        table11 = Table(((4, 5), (6, 7)), 4, 8, 'regular table', [], None, TableStatus.READY)
 
         table1.make_combinable_with(table2)
         table2.make_combinable_with(table3)
