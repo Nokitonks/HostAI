@@ -1,12 +1,11 @@
-import numpy as np
-import pygame
 import csv
-from helperFunctions import *
+from utils.helperFunctions import *
 import gymnasium as gym
 from gymnasium import spaces
 from ClassDefinitions import *
 import logging
-import sys
+
+
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 

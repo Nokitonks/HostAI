@@ -2,6 +2,9 @@ import pygame
 import numpy as np
 import gymnasium as gym
 
+from HostEnv import HostWorldEnv
+
+
 def create_scaled_rect(original_rect, percentage):
     """
     Creates a new rectangle that is centered inside the original rectangle
@@ -52,7 +55,7 @@ def get_max_font_size(text, max_width, max_height, base_font_size):
 
     return font
 
-def mask_fn(env: gym.Env) -> np.ndarray:
+def mask_fn(env: HostWorldEnv) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
     # for the current env. In this example, we assume the env has a
     # helpful method we can rely on.

@@ -1,15 +1,11 @@
-import numpy as np
-
 # Mock imports that are not the focus of unit testing
 from HostEnv import HostWorldEnv
 from gymnasium.wrappers import FlattenObservation
 from sb3_contrib.common.wrappers import ActionMasker
-import gymnasium as gym
 from sb3_contrib import MaskablePPO
-from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from BasicRestaurant1 import BasicRestaurantTables
-from Classroom import Curriculum, Lesson, Episode, TrialStats, LessonStats, EpisodeStats, CurriculumStats
-from helperFunctions import mask_fn
+from Classroom import Lesson, Episode
+from utils.helperFunctions import mask_fn
 import pygame
 import time
 def create_curriculum(env):
