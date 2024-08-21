@@ -152,11 +152,10 @@ def train(seed, args, shared_list):
             callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar)]
         elif args.track_local:
             callbacks = [progress_callback, auto_save_callback]
-        # model.learn(total_timesteps=config["total_timesteps"], callback=[progress_callback,wanbc,eval_callback])
 
         # print callbacks used
         print("Callbacks used are:", callbacks)
-        model.learn(total_timesteps=config["total_timesteps"], callback=EnvLogger(args.envlogger_freq,log_dir_statevar), progress_bar=True)
+        model.learn(total_timesteps=config["total_timesteps"], callback=callbacks, progress_bar=True)
 
     print("Total training time: ", datetime.datetime.now() - start)
 

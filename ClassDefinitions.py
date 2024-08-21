@@ -31,7 +31,7 @@ class TableStatus(Enum):
     COMBINED = 3
 
 class Table(object):
-    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
+    def __init__(self, number,footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
         """
         :param footprint: The footprint the table will occupy on the floor plan specified as a (x,y) to (x2,y2)
             which are the top left and bottom right coords of the table
@@ -52,6 +52,7 @@ class Table(object):
 
         :param clean_progress: float representing the status of the table being cleaned (in seconds
         """
+        self.number = number
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
         self.desirability = desirability  # Integer (0-10)

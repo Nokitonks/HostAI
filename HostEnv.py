@@ -159,7 +159,9 @@ class HostWorldEnv(gym.Env):
         handler, params = self.action_handlers[action]
         reward, done = handler(**params)
         if (reward == -1):
-            self.universal_clock.update()
+            for i in range(3):
+                self.universal_clock.update()
+            reward = 0
         # For debugging etc purposes
         info = {}
         reward += self.update_tables()
@@ -288,8 +290,21 @@ class HostWorldEnv(gym.Env):
         return walk_ins
 
     def default_action(self):
+
         self.universal_clock.update()
-        return 0, False
+        reward = 0
+        #Advancing the clock when there is an open table is a negative reward
+        for party in self.waitlist:
+            for table in self.tables:
+                if table.status == TableStatus.READY:
+                    if party.num_people <= table.get_combined_size([]):
+                        reward = -1
+                        return reward, False
+
+        #Advancing the clock when there is no possible way to seat people is positive task
+        reward = 0.1
+
+        return reward, False
 
     def assign_party_to_table(self,party_pool,table_index):
         try:

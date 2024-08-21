@@ -5,6 +5,29 @@ import gymnasium as gym
 from HostEnv import HostWorldEnv
 
 
+
+def action_number_into_function(tables,unique_combos) -> dict:
+    cnt = 0
+    name = {}
+    size_dict = {
+        0:2,
+        1:4,
+        2:6,
+        3:8
+    }
+    for pools in range(4):
+        for table in tables:
+            name[cnt] = f"Assign Party of size {size_dict[pools]} to Table:{table.number}"
+            cnt += 1
+    for combo in unique_combos:
+        name[cnt] = f"Combine Table{combo[0].number} with Table:{combo[1].number}"
+        cnt += 1
+        name[cnt] = f"Uncombine Table{combo[0].number} with Table:{combo[1].number}"
+        cnt += 1
+    name[cnt] = "Default Action (Advance Time)"
+    return name
+
+
 def create_scaled_rect(original_rect, percentage):
     """
     Creates a new rectangle that is centered inside the original rectangle

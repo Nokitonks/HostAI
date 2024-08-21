@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
+from utils.helperFunctions import action_number_into_function
 import matplotlib.pyplot as plt
 import wandb
 
@@ -117,6 +118,7 @@ class ProgressBarCallback(BaseCallback):
         # Update the progress bar:
         self._pbar.n = self.num_timesteps
         self._pbar.update(0)
+        return True
 
 
 class ProgressBarManager(object):
@@ -209,6 +211,7 @@ class EnvLogger(BaseCallback):
         Initialize the callback by setting up the logging infrastructure.
         """
 
+
         """
         We need to represent the data for the environment 
         these are our column headers
@@ -218,6 +221,10 @@ class EnvLogger(BaseCallback):
         for i, table in enumerate(self.tables[0]):
             list.append(f'table_{i}_status')
             list.append(f'party_{i}_status')
+
+        #For coding action #s as actual strings for human readability
+        unique_combos = self.model.env.get_attr("unique_combos")
+        self.action_dict = action_number_into_function(self.tables[0],unique_combos[0])
         # Create output frame
         self.df = pd.DataFrame(columns=['action', 'reward','values','log_probs','curr_time'] + list )
 
@@ -235,7 +242,8 @@ class EnvLogger(BaseCallback):
 
             # Write action and reward
             row_dict = dict()
-            row_dict['action'] = self.locals['actions'][0]
+            raw_action = self.locals['actions'][0]
+            row_dict['action'] =  self.action_dict[raw_action]
             row_dict['reward'] = self.locals['rewards'][0]
             row_dict['values'] = self.locals['values'][0].detach().numpy()[0]
             row_dict['log_probs'] = self.locals['log_probs'].detach().numpy()[0]
