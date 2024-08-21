@@ -38,7 +38,7 @@ def train(seed, args, shared_list):
         "wait_tolerance": 10,
         "reservations_path": 'reservation_files/reservations(1).csv',
         "log_dir": args.log_dir,
-        "end_time": 50,
+        "end_time": 30,
         'walk_ins_path': 'walk_in_files/walk_ins_none.csv',
         'CL_step': args.CL_step
     }
@@ -156,8 +156,7 @@ def train(seed, args, shared_list):
 
         # print callbacks used
         print("Callbacks used are:", callbacks)
-
-        model.learn(total_timesteps=config["total_timesteps"], callback=callbacks, progress_bar=True)
+        model.learn(total_timesteps=config["total_timesteps"], callback=EnvLogger(args.envlogger_freq,log_dir_statevar), progress_bar=True)
 
     print("Total training time: ", datetime.datetime.now() - start)
 
@@ -257,18 +256,18 @@ if __name__ == '__main__':
     class args:
         log_dir = "./logs/"
         CL_step = 1
-        total_timesteps = 500
+        total_timesteps = 30000
         track_wandb = True
         wandb_project_name = "hostai"
         wandb_entity = None
         ent_coef = 0
         gamma = 0.99
-        n_steps = 50
+        n_steps = 64
         target_kl = None
         n_epochs = 1
-        learning_rate = 0.0025
+        learning_rate = 0.001
         envlogger = True
-        envlogger_freq = 1
+        envlogger_freq = 100
         clip_range = 0.2
         track_local = True
         batch_size = 64

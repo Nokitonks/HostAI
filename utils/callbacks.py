@@ -213,26 +213,25 @@ class EnvLogger(BaseCallback):
         We need to represent the data for the environment 
         these are our column headers
         """
-
         self.tables = self.model.env.get_attr("tables")
-        self.waitlist = self.model.env.get_attr("waitlist")
-        self.reservations = self.model.env.get_attr("reservations")
-
+        list = []
+        for i, table in enumerate(self.tables[0]):
+            list.append(f'table_{i}_status')
+            list.append(f'party_{i}_status')
         # Create output frame
-        self.df = pd.DataFrame(columns=['action', 'reward'] + self.tables)
+        self.df = pd.DataFrame(columns=['action', 'reward','values','log_probs','curr_time'] + list )
 
     def _on_step(self):
         """
         Called at every step to log the episode data if the current episode number matches the logging frequency.
         """
-        self.logger.log(f"HELLLO {self.locals['new_obs']}")
         if self.episode_num % self.log_frequency == 0:
 
             # Check done
             if self.locals['dones'][0]:
                 self.save_feather()
                 self.episode_num += 1
-                return  # Stablebaselines calls reset() before the callback, so this step has invalid values
+                return True  # Stablebaselines calls reset() before the callback, so this step has invalid values
 
             # Write action and reward
             row_dict = dict()
@@ -241,17 +240,18 @@ class EnvLogger(BaseCallback):
             row_dict['values'] = self.locals['values'][0].detach().numpy()[0]
             row_dict['log_probs'] = self.locals['log_probs'].detach().numpy()[0]
 
-            # Write volumes
-            obs = self.locals['new_obs']
-            volumes = obs['Volumes'][0]
-            for i, bunker in enumerate(self.bunkers):
-                row_dict[bunker] = volumes[i]
-            self.df = self.df.append(row_dict, ignore_index=True)
+            # Show tables
+            row_dict['curr_time'] = self.model.env.get_attr("universal_clock")[0].current_time
+            for i, table in enumerate(self.model.env.get_attr("tables")[0]):
+                row_dict[f'table_{i}_status'] = table.status
+                if table.party:
+                    row_dict[f'table_{i}_party_status'] = table.party.status
+            self.df = pd.concat([self.df, pd.DataFrame([row_dict])], ignore_index=True)
 
         # Count episodes
         if self.locals['dones'][0]:
             self.episode_num += 1
-        return
+        return True
 
     def save_feather(self):
         """
@@ -259,7 +259,7 @@ class EnvLogger(BaseCallback):
         """
         # Save to file
         self.df.to_csv(self.log_dir + f"episode_{self.episode_num}.csv", index=False)
-        self.plot_episodic_graphs(path=self.log_dir + f"episode_{self.episode_num}.csv", n_bunkers=len(self.bunkers))
+        #self.plot_episodic_graphs(path=self.log_dir + f"episode_{self.episode_num}.csv", n_bunkers=len(self.bunkers))
         # Reset logged data
         self.df = self.df[0:0]
         print(f'saved the file for episode_{self.episode_num}')
