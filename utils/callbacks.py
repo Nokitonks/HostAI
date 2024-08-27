@@ -187,7 +187,7 @@ class EnvLogger(BaseCallback):
 
     """
 
-    def __init__(self, log_frequency, log_dir):
+    def __init__(self, log_frequency, log_dir,sequence_generate=False):
         """
         Initialize the EnvLogger callback.
 
@@ -201,6 +201,13 @@ class EnvLogger(BaseCallback):
         super(EnvLogger, self).__init__()
         self.log_frequency = log_frequency
         self.log_dir = log_dir
+
+        """
+        If we want to collect sequences for our LSTM then we need to initialize those data structures
+        """
+        self.sequence_generate = sequence_generate
+        if self.sequence_generate:
+           self.seq_df = pd.DataFrame(columns=['action','state','reward'])
         # create dir if not exists
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -210,6 +217,7 @@ class EnvLogger(BaseCallback):
         """
         Initialize the callback by setting up the logging infrastructure.
         """
+
 
 
         """
@@ -240,6 +248,7 @@ class EnvLogger(BaseCallback):
                 self.episode_num += 1
                 return True  # Stablebaselines calls reset() before the callback, so this step has invalid values
 
+
             # Write action and reward
             row_dict = dict()
             raw_action = self.locals['actions'][0]
@@ -255,6 +264,12 @@ class EnvLogger(BaseCallback):
                 if table.party:
                     row_dict[f'table_{i}_party_status'] = table.party.status
             self.df = pd.concat([self.df, pd.DataFrame([row_dict])], ignore_index=True)
+            if self.sequence_generate:
+                seq = dict()
+                seq['action'] = raw_action
+                seq['reward'] = row_dict['reward']
+                seq['state'] = self.locals['new_obs'][0]
+                self.seq_df = pd.concat([self.seq_df, pd.DataFrame([seq])], ignore_index=True)
 
         # Count episodes
         if self.locals['dones'][0]:
@@ -265,6 +280,10 @@ class EnvLogger(BaseCallback):
         """
         Save the logged data to a file and reset the logging dataframe.
         """
+        if self.sequence_generate:
+            self.seq_df.to_pickle(f"sequences/Sequence({self.episode_num}).pkl")
+            self.seq_df = self.seq_df[0:0]
+
         # Save to file
         self.df.to_csv(self.log_dir + f"episode_{self.episode_num}.csv", index=False)
         #self.plot_episodic_graphs(path=self.log_dir + f"episode_{self.episode_num}.csv", n_bunkers=len(self.bunkers))

@@ -28,13 +28,14 @@ def train(seed, args, shared_list):
         'max_wait_list': 50,
         'max_res_list': 50,
         'window_size': (640, 480),
-        "grid_size": 50
+        "grid_size": 50,
+        'n_steps': 45
     }
     default_mutable_settings = {
         "clean_time": {2: 1,
-                       4: 10,
-                       6: 20,
-                       8: 20},
+                       4: 5,
+                       6: 5,
+                       8: 5},
         "wait_tolerance": 10,
         "reservations_path": 'reservation_files/reservations(1).csv',
         "log_dir": args.log_dir,
@@ -144,12 +145,12 @@ def train(seed, args, shared_list):
 
     with ProgressBarManager(config["total_timesteps"]) as progress_callback:
         if args.track_wandb and args.envlogger:
-            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar)]
+            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen)]
         elif args.track_wandb:
             callbacks = [progress_callback, wandbc, auto_save_callback]
 
         elif args.track_local and args.envlogger:
-            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar)]
+            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen)]
         elif args.track_local:
             callbacks = [progress_callback, auto_save_callback]
 
@@ -266,9 +267,10 @@ if __name__ == '__main__':
         n_epochs = 1
         learning_rate = 0.001
         envlogger = True
-        envlogger_freq = 100
+        envlogger_freq = 1
         clip_range = 0.2
         track_local = True
         batch_size = 64
+        seq_gen = True
 
     train(0,args,[])

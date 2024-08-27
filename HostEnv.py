@@ -38,8 +38,6 @@ class HostWorldEnv(gym.Env):
         # The list containing tables objects to setup the grid of tables
         self.tables = self.immutable_config['tables']
 
-
-
         # Define action space
         num_assign_actions = 4*len(self.tables)
         num_default_actions = 1
@@ -105,6 +103,11 @@ class HostWorldEnv(gym.Env):
                                                                self.immutable_config['max_wait_list'],
                                                                self.immutable_config['max_res_list'])
         self.state = None
+
+        """
+        We want to make sure that every episode has a set amount of steps in order for our sequence matching algorithm to work
+        """
+        self.n_steps = self.immutable_config['n_steps']
         self.reset()
 
         # Setup Pygame
@@ -151,6 +154,7 @@ class HostWorldEnv(gym.Env):
     def step(self,action):
         reward = 0
         done = False
+        self.n_steps -= 1
         # Default action means action will be None
 
         # Call the handler function for the action with parameters
@@ -167,8 +171,11 @@ class HostWorldEnv(gym.Env):
         reward += self.update_tables()
         self.update_arrivals()
         reward += self.update_parties()
+        # We are trying just to finish after a number of steps
+        """
         if self.universal_clock.current_time >= self.end_time:
             # Game Over
+            # Need to make sure we have reached the total actions
             if len(self.waitlist) == 0:
                 for table in self.tables:
                     if table.status != TableStatus.READY and table.status != TableStatus.COMBINED:
@@ -176,6 +183,17 @@ class HostWorldEnv(gym.Env):
                         break
                     done = True
             pass
+        """
+        #Override for RUDDER PRACTICE- >>>>
+        reward = 0
+
+        if self.n_steps == 1:
+            total_num_served = 0
+            for party in self.served:
+                total_num_served += party.num_people
+            reward = total_num_served
+        if self.n_steps ==0:
+            done = True
 
         return self._get_observation(), reward, done, False, info
 
@@ -249,6 +267,7 @@ class HostWorldEnv(gym.Env):
         self.waitlist = []
         # Parties are added to this list once they have finished eating and left
         self.served = []
+        self.n_steps = self.immutable_config['n_steps']
 
         # Beginning of game we read in the reservations and walk-ins for the evening
         reservations = self.read_reservations(self.mutable_config['reservations_path'])
