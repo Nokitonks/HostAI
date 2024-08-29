@@ -217,9 +217,6 @@ class EnvLogger(BaseCallback):
         """
         Initialize the callback by setting up the logging infrastructure.
         """
-
-
-
         """
         We need to represent the data for the environment 
         these are our column headers

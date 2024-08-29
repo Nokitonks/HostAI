@@ -286,7 +286,7 @@ class PartyStatus(Enum):
 
 
 class Party(object):
-    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time,meal_split):
+    def __init__(self,name, num_people, reservation, table_pref,pref_locked, status, arrival_time, sat_time, leave_time, happiness, dine_time,meal_split):
         """
         :param name: The name of the party specified as a string
 
@@ -294,7 +294,9 @@ class Party(object):
 
         :param reservation: A reservation object that is tied to the party if it exists, if a walk-in this will be None
 
-        :param checks: A list of checks for the current table, is a list of Check objects
+        :param table_pref: The number of the preferred table.
+
+        :param table_locked: If this is true then happiness will be 0 if not sat at table_prefered
 
         :param status: Where the party is in their experience, whether it be main course or dessert. Specified by an enum of party_status
 
@@ -313,7 +315,8 @@ class Party(object):
         self.name = name # String
         self.num_people = num_people  # Integer
         self.reservation = reservation  # Reservation object or None
-        self.checks = checks  # List of Check objects
+        self.table_pref = table_pref
+        self.pref_locked = pref_locked
         self.status = PartyStatus(status)  # PartyStatus enum
         self.arrival_time = arrival_time  # String
         self.sat_time = sat_time  # String
@@ -334,14 +337,14 @@ class Party(object):
         """
         self.status = PartyStatus(new_status)
 
-    def update_seated_status(self,seated_time):
+    def update_seated_status(self,seated_time,busyness,server_busyness):
         """
         Updates the status to reflect the meal_split numbers
         :return: new status the party was changed to
         """
         # Our range is from 0 to dine_time
         time_counter = 0
-        time_max = self.dine_time
+        time_max = self.dine_time * busyness * server_busyness
 
         #This is the range of indexes in the PartyStatus enum we want to capture
         status_index = [2,3,4,5,6]

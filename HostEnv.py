@@ -4,7 +4,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from ClassDefinitions import *
 import logging
-
+from ModelingFunctions import get_busyness
 
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -163,8 +163,8 @@ class HostWorldEnv(gym.Env):
         handler, params = self.action_handlers[action]
         reward, done = handler(**params)
         if (reward == -1):
-            for i in range(3):
-                self.universal_clock.update()
+            for i in range(1):
+                self.advance_time()
             reward = 0
         # For debugging etc purposes
         info = {}
@@ -258,6 +258,14 @@ class HostWorldEnv(gym.Env):
         for table in self.tables:
             table.reset()
 
+        #Server sections
+        self.num_servers = self.mutable_config['num_servers']
+        self.server_sections = self.mutable_config['server_sections']
+        self.server_busyness = dict()
+        for server in range(self.num_servers):
+            self.server_busyness[server] = 0
+
+
         # Misc variables for GUI sizes
         self.PARTY_RECT_SIZE_Y = self.window_size[1] // 10
         self.PARTY_PADDING_X = self.PARTY_RECT_SIZE_Y // 4
@@ -277,9 +285,9 @@ class HostWorldEnv(gym.Env):
 
         # Convert reservations to have their own party object tied to the reservation
         for reservation in reservations:
-            party = Party(reservation.party_name,reservation.num_people, reservation, None,
+            party = Party(reservation.party_name,reservation.num_people, reservation, None,None,
                           PartyStatus.NONE, reservation.reservation_time,None, None,
-                          None,reservation.dine_time,reservation.meal_split)
+                          10,reservation.dine_time,reservation.meal_split)
             self.walk_ins.append(party)
 
         self.universal_clock = UniversalClock(self.start_time,1)
@@ -302,15 +310,15 @@ class HostWorldEnv(gym.Env):
         with open(csv_file, mode='r') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
-                party = Party(row['name'],int(row['num_people']), None, None, PartyStatus.NONE,
-                              row['arrival_time'], None, None, None, int(row['dine_time']),row['meal_split'])
+                party = Party(row['name'],int(row['num_people']), None, None, None, PartyStatus.NONE,
+                              row['arrival_time'], None, None, 10, int(row['dine_time']),row['meal_split'])
 
                 walk_ins.append(party)
         return walk_ins
 
     def default_action(self):
 
-        self.universal_clock.update()
+        self.advance_time()
         reward = 0
         #Advancing the clock when there is an open table is a negative reward
         for party in self.waitlist:
@@ -334,6 +342,10 @@ class HostWorldEnv(gym.Env):
         table.assign_party(party)
         self.waitlist.remove(party)
         party.sat_time = self.universal_clock.current_time
+
+        #Get the server for that table and make them a little busyier
+        server_num = self.server_sections[str(table.number)]
+        self.server_busyness[server_num] += party.num_people
 
         reward = party.num_people
         if self.mutable_config['log_dir'] != "":
@@ -387,14 +399,32 @@ class HostWorldEnv(gym.Env):
             cnt += 1
 
         return np.array(action_mask,dtype=np.int8)
+    def advance_time(self):
+        #Update some happinesses of people waiting
+        for party in self.waitlist:
+            #Only start losing happiness after wait_tolerance minutes of waiting
+            if (int(self.universal_clock.current_time) > (int(party.arrival_time) + int(self.mutable_config['wait_tolerance']))):
+                continue
+            else:
+                if party.reservation:
+                    # Parties with reservations will lose happiness more
+                    party.happiness -= 2.5
+                else:
+                    party.happiness -= 0.5
+
+        #Make our servers a little less busy
+        for server in self.server_busyness.keys():
+            if self.server_busyness[server] > 0:
+                self.server_busyness[server] -= 1
+
+        self.universal_clock.update()
 
     def update_parties(self):
         """
         add to the waiting time of all parties currently on wait list
         """
-
         for party in self.waitlist:
-            if self.universal_clock.current_time - (int(party.arrival_time)) >= self.mutable_config['wait_tolerance']:
+            if party.happiness <= 0:
                 self.waitlist.remove(party)
                 self.party_pool_manager.find_pool_for_size(party.num_people).remove(party)
                 if self.mutable_config['log_dir'] != "":
@@ -439,7 +469,9 @@ class HostWorldEnv(gym.Env):
                     table.remove_party()
                     table.status = TableStatus.DIRTY
                 else:
-                    _ = table.party.update_seated_status(time_seated)
+                    server_scaler = translate(self.server_busyness[self.server_sections[str(table.number)]],
+                                              0,20,1,1.5)
+                    _ = table.party.update_seated_status(time_seated,get_busyness(self),server_scaler)
 
             elif table.status == TableStatus.DIRTY:
                 if table.clean_progress >= self.clean_time[table.get_combined_size([])]:
@@ -607,3 +639,8 @@ class HostWorldEnv(gym.Env):
             observation['reservation_list'].append(dummy_reservation)
 
         return observation
+def mask_fn(env: HostWorldEnv) -> np.ndarray:
+    # Do whatever you'd like in this function to return the action mask
+    # for the current env. In this example, we assume the env has a
+    # helpful method we can rely on.
+    return env.get_action_mask()

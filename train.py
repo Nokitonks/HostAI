@@ -5,9 +5,8 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from utils.helperFunctions import mask_fn
 from BasicRestaurant1 import BasicRestaurantTables
-from HostEnv import HostWorldEnv
+from HostEnv import HostWorldEnv, mask_fn
 import wandb
 from wandb.integration.sb3 import WandbCallback
 import datetime
@@ -41,12 +40,25 @@ def train(seed, args, shared_list):
         "log_dir": args.log_dir,
         "end_time": 30,
         'walk_ins_path': 'walk_in_files/walk_ins_none.csv',
+        'num_servers':2,
+        'server_sections':{'1':0,
+                           '2':0,
+                           '3':0,
+                           '4':0,
+                           '5':1,
+                           '6':1,
+                           '7':1,
+                           '8':1,
+                           '10':0,
+                           '11':1
+                           },
         'CL_step': args.CL_step
     }
     env = HostWorldEnv(immutable_config=immutable_settings, mutable_config=default_mutable_settings)
     env = FlattenObservation(env)
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
     env = Monitor(env, default_mutable_settings['log_dir'])
+
     """
     Function to create environment and wrap it with a monitor
     """
@@ -67,7 +79,7 @@ def train(seed, args, shared_list):
                               4:10,
                               6:20,
                               8:20},
-                "wait_tolerance":10,
+                "wait_tolerance":1,
                 "reservations_path": 'reservation_files/reservations(1).csv',
                 "log_dir":args.log_dir,
                 "end_time":50,
@@ -267,7 +279,7 @@ if __name__ == '__main__':
         n_epochs = 1
         learning_rate = 0.001
         envlogger = True
-        envlogger_freq = 1
+        envlogger_freq = 50
         clip_range = 0.2
         track_local = True
         batch_size = 64
