@@ -14,8 +14,15 @@ def action_number_into_function(tables,unique_combos) -> dict:
     }
     for pools in range(4):
         for table in tables:
-            name[cnt] = f"Assign Party of size {size_dict[pools]} to Table:{table.number}"
+            name[cnt] = f"Assign Reservation Party of size {size_dict[pools]} to Table:{table.number}"
             cnt += 1
+    for pools in range(4):
+        for table in tables:
+            name[cnt] = f"Assign Walk-In Party of size {size_dict[pools]} to Table:{table.number}"
+            cnt += 1
+    for pools in range(4):
+        name[cnt] = f"Quoted wait_time to party of size {size_dict[pools]} "
+        cnt += 1
     for combo in unique_combos:
         name[cnt] = f"Combine Table{combo[0].number} with Table:{combo[1].number}"
         cnt += 1

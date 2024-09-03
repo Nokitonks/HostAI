@@ -40,6 +40,7 @@ class HostWorldEnv(gym.Env):
 
         # Define action space
         num_assign_actions = 4*len(self.tables)
+        num_quote_wait_actions = 4
         num_default_actions = 1
 
         unique_combos = []
@@ -50,7 +51,8 @@ class HostWorldEnv(gym.Env):
                 if combo not in unique_combos:
                     unique_combos.append(combo)
         num_combine_actions = len(unique_combos)
-        self.action_space = spaces.Discrete(num_assign_actions +
+        self.action_space = spaces.Discrete((num_assign_actions * 2) +
+                                            num_quote_wait_actions +
                                             num_default_actions +
                                             num_combine_actions + # For combine actions
                                             num_combine_actions   # For un-combine actions
@@ -62,9 +64,21 @@ class HostWorldEnv(gym.Env):
         for pools in range(4):
             for table_index in range(len(self.tables)):
                 self.action_handlers[cnt] = (self.assign_party_to_table,{
+                    'rez':True,
                     'party_pool':pools,
                     'table_index':table_index})
                 cnt += 1
+        for pools in range(4):
+            for table_index in range(len(self.tables)):
+                self.action_handlers[cnt] = (self.assign_party_to_table,{
+                    'rez':False,
+                    'party_pool':pools,
+                    'table_index':table_index})
+                cnt += 1
+        for pools in range(4):
+            self.action_handlers[cnt] = (self.quote_wait_time_to_pary,{
+                'party_pool':pools})
+            cnt += 1
         for combo in unique_combos:
             self.action_handlers[cnt] = (combo[0].combine_with,{
                 'other_table': combo[1]
@@ -248,7 +262,8 @@ class HostWorldEnv(gym.Env):
         self.ROWS = self.window_size[1] // self.GRID_SIZE
         self.COLS = self.window_size[0] // self.GRID_SIZE
 
-        self.party_pool_manager = PartyPoolManager(4,[2,4,6,8])
+        self.rez_party_pool_manager = PartyPoolManager(4,[2,4,6,8])
+        self.walkin_party_pool_manager = PartyPoolManager(4,[2,4,6,8])
         self.clean_time = self.mutable_config['clean_time']
 
         self.TABLE_SECTION = pygame.Rect(self.window_size[0] // 4, 0, self.window_size[0], self.window_size[1])
@@ -299,7 +314,7 @@ class HostWorldEnv(gym.Env):
         with open(csv_file, mode='r') as file:
             csv_reader = csv.DictReader(file)
             for row in csv_reader:
-                reservation = Reservation(row['name'], int(row['num_people']), row['reservation_time'], "",
+                reservation = Reservation(row['name'], int(row['num_people']), int(row['reservation_time']), "",
                                           "", ReservationStatus[row['status']],int(row['dine_time']),row['meal_split'])
                 reservations.append(reservation)
         return reservations
@@ -333,11 +348,58 @@ class HostWorldEnv(gym.Env):
 
         return reward, False
 
-    def assign_party_to_table(self,party_pool,table_index):
-        try:
-            party = self.party_pool_manager.pools[party_pool].get_party()
-        except:
-            return 0, False
+    def get_wait_time(self,party_size) -> int:
+        """
+        Calculated wait time for party of size party_size
+        :param party_size: ^
+        :return: returns the approximated wait time for that party size as an int
+        """
+        if party_size == 2:
+            return 10
+        if party_size == 4:
+            return 10
+        if party_size == 6:
+            return 10
+        if party_size == 8:
+            return 10
+
+    def quote_wait_time_to_pary(self,party_pool):
+        """
+        Gives a walk_in party a wait time and takes them off the waitlist. Party will return at quoted time +- tolerance
+        The time that we quote is always our guessed wait_time for that size party which the model keeps track of
+        :param party_pool: The pool to which this party belongs
+        :return: void
+        """
+        party = self.walkin_party_pool_manager.pools[party_pool].get_party()
+        #Take our party out of the waitlist
+        self.waitlist.remove(party)
+        #Now we create a new reservation that is essentially the time_now + quoted time
+        new_time = int(self.universal_clock.current_time) + self.get_wait_time(party.num_people)
+        new_rez = Reservation(party.name,party.num_people,new_time,"","",ReservationStatus.WALK_IN,party.dine_time,party.meal_split)
+
+        #Configure our party by updating arrival time and tie our reservation to the party object
+        party.reservation = new_rez
+        party.arrival_time = new_time
+
+        self.reservations.append(new_rez)
+        self.reservations = sorted(self.reservations, key=lambda  x: x.reservation_time)
+
+        self.walk_ins.append(party)
+
+        #Need to add better reward here probably
+        return 0, False
+
+    def assign_party_to_table(self,rez,party_pool,table_index):
+        if rez:
+            try:
+                party = self.rez_party_pool_manager.pools[party_pool].get_party()
+            except:
+                return 0, False
+        else:
+            try:
+                party = self.walkin_party_pool_manager.pools[party_pool].get_party()
+            except:
+                return 0, False
         table = self.tables[table_index]
         table.assign_party(party)
         self.waitlist.remove(party)
@@ -361,7 +423,7 @@ class HostWorldEnv(gym.Env):
         cnt = 0
         val = 1
         for pools in range(4):
-            pool = self.party_pool_manager.pools[pools]
+            pool = self.rez_party_pool_manager.pools[pools]
             for table_index in range(len(self.tables)):
                 table = self.tables[table_index]
                 val = 1
@@ -379,6 +441,32 @@ class HostWorldEnv(gym.Env):
                 action_mask[cnt] = val
                 cnt += 1
 
+        for pools in range(4):
+            pool = self.walkin_party_pool_manager.pools[pools]
+            for table_index in range(len(self.tables)):
+                table = self.tables[table_index]
+                val = 1
+                if len(pool) == 0:
+                    val = 0
+
+                # Invalid if party size is not going to fit at the table
+                if (table.get_combined_size([]) < pool.party_size):
+                    val = 0
+
+                # Invalid if the table is occupied
+                if (table.status != TableStatus.READY):
+                    val = 0
+
+                action_mask[cnt] = val
+                cnt += 1
+
+        for pools in range(4):
+            pool = self.walkin_party_pool_manager.pools[pools]
+            val = 1
+            if len(pool) == 0:
+                val = 0
+            action_mask[cnt] = val
+            cnt += 1
         for combo in self.unique_combos:
             # This is the combine action between combo[0] and combo[1]
             if combo[0].can_combine_with(combo[1]):
@@ -426,10 +514,18 @@ class HostWorldEnv(gym.Env):
         for party in self.waitlist:
             if party.happiness <= 0:
                 self.waitlist.remove(party)
-                self.party_pool_manager.find_pool_for_size(party.num_people).remove(party)
-                if self.mutable_config['log_dir'] != "":
-                    logging.info(f"Party {party.name} of size {party.num_people} Left at {self.universal_clock.current_time}\n")
-                return -party.num_people
+                if party.reservation:
+                    self.rez_party_pool_manager.find_pool_for_size(party.num_people).remove(party)
+                    if self.mutable_config['log_dir'] != "":
+                        logging.info(
+                            f"Party {party.name} of size {party.num_people} Left at {self.universal_clock.current_time}\n")
+                    return -party.num_people * 4
+                else:
+                    self.walkin_party_pool_manager.find_pool_for_size(party.num_people).remove(party)
+                    if self.mutable_config['log_dir'] != "":
+                        logging.info(
+                            f"Party {party.name} of size {party.num_people} Left at {self.universal_clock.current_time}\n")
+                    return -party.num_people
         return 0
 
     def update_arrivals(self):
@@ -446,10 +542,18 @@ class HostWorldEnv(gym.Env):
             arrival_min = int(party.arrival_time)
             if arrival_min <= clock_min:
                 self.waitlist.append(party)
-                for pool in self.party_pool_manager.pools:
-                    if pool.party_size >= party.num_people:
-                        pool.add(party)
-                        break
+
+                # We search for the pool to add them to
+                if party.reservation:
+                    for pool in self.rez_party_pool_manager.pools:
+                        if pool.party_size >= party.num_people:
+                            pool.add(party)
+                            break
+                else:
+                    for pool in self.walkin_party_pool_manager.pools:
+                        if pool.party_size >= party.num_people:
+                            pool.add(party)
+                            break
                 party.status = PartyStatus.ARRIVED
                 self.walk_ins.remove(party)
 

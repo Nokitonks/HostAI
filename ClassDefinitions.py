@@ -479,6 +479,7 @@ class ReservationStatus(Enum):
     CONFIRMED = 1
     SEATED = 2
     CANCELED = 3
+    WALK_IN = 4
 
 
 class Check(object):
@@ -582,7 +583,10 @@ class PartyPool(set):
         return option1
 
     def get_party(self):
-        # Define a custom method
+        """
+        Gets a party from the party pool WITHOUT replacement
+        :return: party selected
+        """
         best = None
         for party in self:
             if self._get_most_urgent(best,party) == party:

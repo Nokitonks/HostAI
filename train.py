@@ -38,8 +38,8 @@ def train(seed, args, shared_list):
         "wait_tolerance": 10,
         "reservations_path": 'reservation_files/reservations(1).csv',
         "log_dir": args.log_dir,
-        "end_time": 30,
-        'walk_ins_path': 'walk_in_files/walk_ins_none.csv',
+        "end_time": 80,
+        'walk_ins_path': 'walk_in_files/walk_ins.csv',
         'num_servers':2,
         'server_sections':{'1':0,
                            '2':0,
@@ -268,7 +268,7 @@ if __name__ == '__main__':
     class args:
         log_dir = "./logs/"
         CL_step = 1
-        total_timesteps = 30000
+        total_timesteps = 10000
         track_wandb = True
         wandb_project_name = "hostai"
         wandb_entity = None
