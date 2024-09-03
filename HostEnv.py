@@ -469,6 +469,8 @@ class HostWorldEnv(gym.Env):
                 val = 1
                 if len(pool) == 0:
                     val = 0
+                if int(self.universal_clock.current_time) + time >= self.mutable_config['end_time']:
+                    val = 0
                 action_mask[cnt] = val
                 cnt += 1
         for pools in range(4):
