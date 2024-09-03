@@ -222,6 +222,7 @@ class EnvLogger(BaseCallback):
         these are our column headers
         """
         self.tables = self.model.env.get_attr("tables")
+        self.immutable_config = self.model.env.get_attr("immutable_config")
         list = []
         for i, table in enumerate(self.tables[0]):
             list.append(f'table_{i}_status')
@@ -229,7 +230,7 @@ class EnvLogger(BaseCallback):
 
         #For coding action #s as actual strings for human readability
         unique_combos = self.model.env.get_attr("unique_combos")
-        self.action_dict = action_number_into_function(self.tables[0],unique_combos[0])
+        self.action_dict = action_number_into_function(self.tables[0],unique_combos[0],self.immutable_config[0])
         # Create output frame
         self.df = pd.DataFrame(columns=['action', 'reward','values','log_probs','curr_time'] + list )
 

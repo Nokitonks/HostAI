@@ -3,7 +3,7 @@ import numpy as np
 import gymnasium as gym
 
 
-def action_number_into_function(tables,unique_combos) -> dict:
+def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
     cnt = 0
     name = {}
     size_dict = {
@@ -21,7 +21,12 @@ def action_number_into_function(tables,unique_combos) -> dict:
             name[cnt] = f"Assign Walk-In Party of size {size_dict[pools]} to Table:{table.number}"
             cnt += 1
     for pools in range(4):
-        name[cnt] = f"Quoted wait_time to party of size {size_dict[pools]} "
+        for time in range(immutable_config['wait_quote_min'], immutable_config['wait_quote_max'],
+                          immutable_config['wait_quote_step']):
+            name[cnt] = f"Quoted wait of {time}minutes to party of size {size_dict[pools]} "
+            cnt += 1
+    for pools in range(4):
+        name[cnt] = f"Denied party of size {size_dict[pools]}"
         cnt += 1
     for combo in unique_combos:
         name[cnt] = f"Combine Table{combo[0].number} with Table:{combo[1].number}"

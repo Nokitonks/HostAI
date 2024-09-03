@@ -40,7 +40,12 @@ class HostWorldEnv(gym.Env):
 
         # Define action space
         num_assign_actions = 4*len(self.tables)
+        quote_wait_times = 0
+        for time in range(immutable_config['wait_quote_min'], immutable_config['wait_quote_max'],
+                          immutable_config['wait_quote_step']):
+            quote_wait_times += 1
         num_quote_wait_actions = 4
+        num_deny_actions = 4
         num_default_actions = 1
 
         unique_combos = []
@@ -52,7 +57,8 @@ class HostWorldEnv(gym.Env):
                     unique_combos.append(combo)
         num_combine_actions = len(unique_combos)
         self.action_space = spaces.Discrete((num_assign_actions * 2) +
-                                            num_quote_wait_actions +
+                                            (quote_wait_times * num_quote_wait_actions) +
+                                            num_deny_actions +
                                             num_default_actions +
                                             num_combine_actions + # For combine actions
                                             num_combine_actions   # For un-combine actions
@@ -76,9 +82,16 @@ class HostWorldEnv(gym.Env):
                     'table_index':table_index})
                 cnt += 1
         for pools in range(4):
-            self.action_handlers[cnt] = (self.quote_wait_time_to_pary,{
-                'party_pool':pools})
+            for time in range (immutable_config['wait_quote_min'], immutable_config['wait_quote_max'],immutable_config['wait_quote_step']):
+                self.action_handlers[cnt] = (self.quote_wait_time_to_pary,{
+                    'time': time,
+                    'party_pool':pools})
+                cnt += 1
+        for pools in range(4):
+            self.action_handlers[cnt] = (self.deny_party, {
+                'party_pool': pools})
             cnt += 1
+
         for combo in unique_combos:
             self.action_handlers[cnt] = (combo[0].combine_with,{
                 'other_table': combo[1]
@@ -90,7 +103,6 @@ class HostWorldEnv(gym.Env):
             cnt += 1
         self.unique_combos = unique_combos
         self.action_handlers[cnt] = (self.default_action,{})
-
 
         """
         Our observation space is complex and can carry a lot of information about the sate of the game 
@@ -348,33 +360,24 @@ class HostWorldEnv(gym.Env):
 
         return reward, False
 
-    def get_wait_time(self,party_size) -> int:
-        """
-        Calculated wait time for party of size party_size
-        :param party_size: ^
-        :return: returns the approximated wait time for that party size as an int
-        """
-        if party_size == 2:
-            return 10
-        if party_size == 4:
-            return 10
-        if party_size == 6:
-            return 10
-        if party_size == 8:
-            return 10
+    def deny_party(self,party_pool):
+        party = self.walkin_party_pool_manager.pools[party_pool].get_party()
+        self.waitlist.remove(party)
+        return 0 ,False
 
-    def quote_wait_time_to_pary(self,party_pool):
+    def quote_wait_time_to_pary(self,party_pool,time):
         """
         Gives a walk_in party a wait time and takes them off the waitlist. Party will return at quoted time +- tolerance
         The time that we quote is always our guessed wait_time for that size party which the model keeps track of
         :param party_pool: The pool to which this party belongs
+        :param time: The quoted time for the party to return in, ranging from 10min - 90min
         :return: void
         """
         party = self.walkin_party_pool_manager.pools[party_pool].get_party()
         #Take our party out of the waitlist
         self.waitlist.remove(party)
         #Now we create a new reservation that is essentially the time_now + quoted time
-        new_time = int(self.universal_clock.current_time) + self.get_wait_time(party.num_people)
+        new_time = int(self.universal_clock.current_time) + int(time)
         new_rez = Reservation(party.name,party.num_people,new_time,"","",ReservationStatus.WALK_IN,party.dine_time,party.meal_split)
 
         #Configure our party by updating arrival time and tie our reservation to the party object
@@ -460,6 +463,14 @@ class HostWorldEnv(gym.Env):
                 action_mask[cnt] = val
                 cnt += 1
 
+        for pools in range(4):
+            for time in range (self.immutable_config['wait_quote_min'], self.immutable_config['wait_quote_max'],self.immutable_config['wait_quote_step']):
+                pool = self.walkin_party_pool_manager.pools[pools]
+                val = 1
+                if len(pool) == 0:
+                    val = 0
+                action_mask[cnt] = val
+                cnt += 1
         for pools in range(4):
             pool = self.walkin_party_pool_manager.pools[pools]
             val = 1

@@ -28,7 +28,10 @@ def train(seed, args, shared_list):
         'max_res_list': 50,
         'window_size': (640, 480),
         "grid_size": 50,
-        'n_steps': 45
+        'n_steps': 45,
+        'wait_quote_min':10,
+        'wait_quote_max': 90,
+        'wait_quote_step': 5
     }
     default_mutable_settings = {
         "clean_time": {2: 1,
