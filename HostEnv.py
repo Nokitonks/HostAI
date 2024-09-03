@@ -211,13 +211,13 @@ class HostWorldEnv(gym.Env):
             pass
         """
         #Override for RUDDER PRACTICE- >>>>
-        reward = 0
+        #reward = 0
 
         if self.n_steps == 1:
             total_num_served = 0
             for party in self.served:
                 total_num_served += party.num_people
-            reward = total_num_served
+            #reward = total_num_served
         if self.n_steps ==0:
             done = True
 
@@ -356,14 +356,14 @@ class HostWorldEnv(gym.Env):
                         return reward, False
 
         #Advancing the clock when there is no possible way to seat people is positive task
-        reward = 0.1
+        reward = 0
 
         return reward, False
 
     def deny_party(self,party_pool):
         party = self.walkin_party_pool_manager.pools[party_pool].get_party()
         self.waitlist.remove(party)
-        return 0 ,False
+        return -party.num_people / 2 ,False
 
     def quote_wait_time_to_pary(self,party_pool,time):
         """
@@ -413,10 +413,11 @@ class HostWorldEnv(gym.Env):
         self.server_busyness[server_num] += party.num_people
 
         reward = party.num_people
+        happiness_modifier = (party.happiness / 10)
         if self.mutable_config['log_dir'] != "":
             logging.info(f"Party {party.name} of size {party.num_people} has been seated at t={self.universal_clock.current_time}\n")
         # Needs to return a reward and a done
-        return reward, False
+        return reward * happiness_modifier, False
 
     def get_action_mask(self):
 

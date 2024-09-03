@@ -574,13 +574,32 @@ class PartyPool(set):
         # Initialize additional attributes if needed
         self.party_size = party_size
 
-    def _get_most_urgent(self,option1,option2):
+    def _get_most_urgent(self,party1,party2):
+        """
+        :param party1: party 1
+        :param party2: party 2
+        :return: The most urgent party based on how close they are to reservation time if they are a reservation
+        Based on arrival time if they are a walk_in
+        """
+        if party1 == None: return party2
+        if party2 == None: return party1
+        if party1.reservation:
+            #Shouldnt have parties with no reservation and a reservation in same pool
+            if not party2.reservation: AssertionError(f"Party {party1} and Party {party2} are in the same pool but have conflicting reservations")
 
-        if not option1 : return option2
-        if not option2 : return option1
+            if party1.reservation.reservation_time < party2.reservation.reservation_time:
+                return party1
+            else:
+                return party2
 
-        # Logic in here to determine which option is better
-        return option1
+        #If we dont have a reservation we do it on arrival time
+        else:
+            if party1.arrival_time < party2.arrival_time:
+                return party1
+            else:
+                return party2
+
+
 
     def get_party(self):
         """

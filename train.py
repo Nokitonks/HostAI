@@ -271,7 +271,7 @@ if __name__ == '__main__':
     class args:
         log_dir = "./logs/"
         CL_step = 1
-        total_timesteps = 10000
+        total_timesteps = 100000
         track_wandb = True
         wandb_project_name = "hostai"
         wandb_entity = None
@@ -282,7 +282,7 @@ if __name__ == '__main__':
         n_epochs = 1
         learning_rate = 0.001
         envlogger = True
-        envlogger_freq = 50
+        envlogger_freq = 100
         clip_range = 0.2
         track_local = True
         batch_size = 64
