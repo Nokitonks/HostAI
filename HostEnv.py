@@ -5,6 +5,7 @@ from gymnasium import spaces
 from ClassDefinitions import *
 import logging
 from ModelingFunctions import get_busyness
+from gymnasium.spaces.utils import flatten
 
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -103,6 +104,7 @@ class HostWorldEnv(gym.Env):
             cnt += 1
         self.unique_combos = unique_combos
         self.action_handlers[cnt] = (self.default_action,{})
+        print(f"cnt is {cnt}\n")
 
         """
         Our observation space is complex and can carry a lot of information about the sate of the game 
@@ -174,7 +176,8 @@ class HostWorldEnv(gym.Env):
             'reservation_list': spaces.Tuple([reservation_space for _ in range(max_reservation_list)]),
             'current_time': spaces.Discrete(max_time*2)
         })
-
+        self.flattened_mapping = create_flattened_mapping(observation_space)
+        print(self.flattened_mapping)
         return observation_space
 
     def step(self,action):
@@ -755,8 +758,13 @@ class HostWorldEnv(gym.Env):
             })
         while len(observation['reservation_list']) < self.immutable_config['max_res_list']:
             observation['reservation_list'].append(dummy_reservation)
-
         return observation
+
+
+    def get_state_shape(self):
+        return [flatten(self.observation_space,self.observation_space.sample()).size]
+    def get_n_actions(self):
+        return [self.action_space.n]
 def mask_fn(env: HostWorldEnv) -> np.ndarray:
     # Do whatever you'd like in this function to return the action mask
     # for the current env. In this example, we assume the env has a

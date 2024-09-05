@@ -1,6 +1,7 @@
 import pygame
 import numpy as np
 import gymnasium as gym
+from gymnasium.spaces import Dict, Tuple, Box, Discrete
 
 
 def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
@@ -87,3 +88,91 @@ def get_max_font_size(text, max_width, max_height, base_font_size):
 
     return font
 
+def flat_obs_into_variable(obs):
+
+    return 42
+
+def flatten_space(space, parent_key='', sep='_'):
+    """
+        Recursively flatten a Gymnasium observation space (Dict, Tuple) and handle Discrete spaces
+        by accounting for their one-hot encoding.
+
+        Parameters:
+        space (spaces.Space): The Gymnasium observation space.
+        parent_key (str): The base key to prepend to keys in the observation.
+        sep (str): The separator between parent and child keys.
+
+        Returns:
+        list: A list of (key, size) tuples, where key is the flattened key and size is the number of elements.
+        """
+    items = []
+    if isinstance(space, Dict):
+        for k, subspace in space.spaces.items():
+            new_key = parent_key + sep + k if parent_key else k
+            items.extend(flatten_space(subspace, new_key, sep=sep))
+    elif isinstance(space, Tuple):
+        for idx, subspace in enumerate(space.spaces):
+            new_key = f"{parent_key}{sep}{idx}"
+            items.extend(flatten_space(subspace, new_key, sep=sep))
+    elif isinstance(space, Discrete):
+        # Discrete space is represented as one-hot, so the size is the number of discrete choices
+        items.append((parent_key, int(space.n)))  # Use n as the size for one-hot encoding
+    else:
+        # Base case: for Box or other spaces
+        size = int(np.prod(space.shape)) if hasattr(space, 'shape') else 1
+        items.append((parent_key, size))
+    return items
+
+def create_flattened_mapping(space):
+    """
+        Create a mapping from the original space to the flattened index, including handling one-hot
+        encoding for Discrete spaces.
+
+        Parameters:
+        space (spaces.Space): The original Gymnasium observation space.
+
+        Returns:
+        dict: A mapping from feature names to index ranges in the flattened array.
+        """
+    flattened_space = flatten_space(space)
+    mapping = {}
+    current_idx = 0
+    for key, size in flattened_space:
+        mapping[key] = (current_idx, current_idx + size)
+        current_idx += size
+    return mapping
+
+def one_hot_to_int(one_hot_vector):
+    """
+    Convert a one-hot encoded vector (either list or NumPy array) to its corresponding integer value.
+
+    Parameters:
+    one_hot_vector (list or np.array): A one-hot encoded vector (e.g., [0, 1, 0]).
+
+    Returns:
+    int: The index of the 1 in the one-hot vector, or -1 if the vector is invalid.
+    """
+    if np.sum(one_hot_vector) != 1:
+        # If the sum of elements is not 1, it's not a valid one-hot vector
+        return -1
+    return np.argmax(one_hot_vector)  # Returns the index of the max value, which should be 1
+
+
+def select_features_from_flattened(flattened_obs, flattened_mapping, desired_features):
+    """
+        Select specific features from the flattened observation based on the mapping, including
+        one-hot encoded Discrete spaces.
+
+        Parameters:
+        flattened_obs (list or array): The flattened observation.
+        flattened_mapping (dict): The mapping from feature names to index ranges.
+        desired_features (list): List of feature names to extract.
+
+        Returns:
+        list: A list of values corresponding to the selected features.
+        """
+    selected_values = []
+    for feature in desired_features:
+        start_idx, end_idx = flattened_mapping[feature]
+        selected_values.extend([one_hot_to_int(flattened_obs[start_idx:end_idx])])
+    return selected_values

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
-from utils.helperFunctions import action_number_into_function
+from utils.helperFunctions import action_number_into_function,select_features_from_flattened
 import matplotlib.pyplot as plt
 import wandb
 
@@ -173,6 +173,63 @@ class ProgressBarManager(object):
         self.pbar.update(0)
         self.pbar.close()
 
+class RudderManager(BaseCallback):
+    """
+    Callback for creating buffers and then running the rudder algorithm
+
+    Parameters
+    sequence_generate: whether or not to create our buffer sequences
+    lesson_buffer: the structure to store our sequences
+    lstm: our NN that creates our delayed rewards
+
+    """
+    def __init__(self, sequence_generate, lesson_buffer,lstm):
+
+        super(RudderManager, self).__init__()
+        self.sequence_generate = sequence_generate
+        self.lesson_buffer = lesson_buffer
+        self.lstm = lstm
+        """
+        If we want to collect sequences for our LSTM then we need to initialize those data structures
+        """
+        self.sequence_generate = sequence_generate
+        if self.sequence_generate:
+            self.seq_state = []
+            self.seq_action = []
+            self.seq_reward = []
+            self.lesson_buffer = lesson_buffer
+        self.episode_num = 1
+
+
+    def _on_step(self):
+        if self.sequence_generate:
+            self.seq_action.append(self.locals['actions'][0])
+            self.seq_state.append(self.locals['new_obs'][0])
+            self.seq_reward.append(self.locals['rewards'][0])
+            self.mapping = self.model.env.get_attr('flattened_mapping')[0]
+
+            #Save experience to lesson_buffer
+            if self.locals['dones'][0]:
+                states = np.stack(self.seq_state)
+                actions = np.array(self.seq_action)
+                rewards = np.array(self.seq_reward)
+                self.lesson_buffer.add(states=states, actions=actions, rewards=rewards)
+                if self.lesson_buffer.different_returns_encountered() and self.lesson_buffer.full_enough():
+
+                    print("\nReady to Learn\n")
+                    # If RUDDER is run, the LSTM is trained after each episode until its loss is below a threshold.
+                    # Samples will be drawn from the lessons buffer.
+                    if self.episode_num % 25 == 0:
+                        self.lstm.train(episode=self.episode_num,state_mapping=self.mapping)
+                        # Then the LSTM is used to redistribute the reward.
+                        rewards = self.lstm.redistribute_reward(states=np.expand_dims(states, 0),
+                                                       actions=np.expand_dims(actions, 0),state_mapping=self.mapping)[0, :]
+                        print(f"\n Rewards Redis = {rewards}\n")
+
+                self.seq_action, self.seq_state, self.seq_reward = [], [], []
+                self.episode_num += 1
+
+            return True
 
 class EnvLogger(BaseCallback):
     """
@@ -187,7 +244,7 @@ class EnvLogger(BaseCallback):
 
     """
 
-    def __init__(self, log_frequency, log_dir,sequence_generate=False):
+    def __init__(self, log_frequency, log_dir,sequence_generate=False,lesson_buffer=None):
         """
         Initialize the EnvLogger callback.
 
@@ -202,12 +259,6 @@ class EnvLogger(BaseCallback):
         self.log_frequency = log_frequency
         self.log_dir = log_dir
 
-        """
-        If we want to collect sequences for our LSTM then we need to initialize those data structures
-        """
-        self.sequence_generate = sequence_generate
-        if self.sequence_generate:
-           self.seq_df = pd.DataFrame(columns=['action','state','reward'])
         # create dir if not exists
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -238,6 +289,7 @@ class EnvLogger(BaseCallback):
         """
         Called at every step to log the episode data if the current episode number matches the logging frequency.
         """
+
         if self.episode_num % self.log_frequency == 0:
 
             # Check done
@@ -245,6 +297,7 @@ class EnvLogger(BaseCallback):
                 self.save_feather()
                 self.episode_num += 1
                 return True  # Stablebaselines calls reset() before the callback, so this step has invalid values
+
 
 
             # Write action and reward
@@ -262,12 +315,6 @@ class EnvLogger(BaseCallback):
                 if table.party:
                     row_dict[f'table_{i}_party_status'] = table.party.status
             self.df = pd.concat([self.df, pd.DataFrame([row_dict])], ignore_index=True)
-            if self.sequence_generate:
-                seq = dict()
-                seq['action'] = raw_action
-                seq['reward'] = row_dict['reward']
-                seq['state'] = self.locals['new_obs'][0]
-                self.seq_df = pd.concat([self.seq_df, pd.DataFrame([seq])], ignore_index=True)
 
         # Count episodes
         if self.locals['dones'][0]:
@@ -278,9 +325,6 @@ class EnvLogger(BaseCallback):
         """
         Save the logged data to a file and reset the logging dataframe.
         """
-        if self.sequence_generate:
-            self.seq_df.to_pickle(f"sequences/Sequence({self.episode_num}).pkl")
-            self.seq_df = self.seq_df[0:0]
 
         # Save to file
         self.df.to_csv(self.log_dir + f"episode_{self.episode_num}.csv", index=False)

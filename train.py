@@ -10,8 +10,8 @@ from HostEnv import HostWorldEnv, mask_fn
 import wandb
 from wandb.integration.sb3 import WandbCallback
 import datetime
-
-from utils.callbacks import EnvLogger, SaveOnBestTrainingRewardCallback, ProgressBarManager
+from rudder import LessonBuffer, RRLSTM
+from utils.callbacks import EnvLogger, SaveOnBestTrainingRewardCallback, ProgressBarManager, RudderManager
 
 
 def train(seed, args, shared_list):
@@ -23,12 +23,12 @@ def train(seed, args, shared_list):
     immutable_settings = {
         'tables': BasicRestaurantTables().tables,
         'max_party_size': 8,
-        'max_time': 500,
-        'max_wait_list': 50,
-        'max_res_list': 50,
+        'max_time': 200,
+        'max_wait_list': 20,
+        'max_res_list': 20,
         'window_size': (640, 480),
         "grid_size": 50,
-        'n_steps': 145,
+        'n_steps': 100,
         'wait_quote_min':10,
         'wait_quote_max': 90,
         'wait_quote_step': 5
@@ -72,8 +72,8 @@ def train(seed, args, shared_list):
                 'tables': BasicRestaurantTables().tables,
                 'max_party_size': 8,
                 'max_time': 500,
-                'max_wait_list':50,
-                'max_res_list':50,
+                'max_wait_list':10,
+                'max_res_list':15,
                 'window_size':(640,480),
                 "grid_size": 50
             }
@@ -156,16 +156,31 @@ def train(seed, args, shared_list):
     auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=1000, log_dir=args.log_dir)
 
 
+    #Lesson buffer for RUDDER learning
+    lb_size = 64
+    n_lstm = 16
+    max_time = 100
+    policy_lr = 0.1
+    lstm_lr = 1e-2
+    l2_regularization = 1e-6
+    avg_window = 750
+
+    lesson_buffer = LessonBuffer(size=lb_size, max_time=max_time, n_features=env.get_state_shape()[-1])
+
+    rudder_lstm = RRLSTM(state_input_size=8, n_actions=env.get_n_actions()[-1], buffer=lesson_buffer, n_units=n_lstm,
+                       lstm_lr=lstm_lr, l2_regularization=l2_regularization, return_scaling=10,
+                       lstm_batch_size=8, continuous_pred_factor=0.5)
+    RudderCallback = RudderManager(True,lesson_buffer,rudder_lstm)
     start = datetime.datetime.now()
 
     with ProgressBarManager(config["total_timesteps"]) as progress_callback:
         if args.track_wandb and args.envlogger:
-            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen)]
+            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen,lesson_buffer),RudderCallback]
         elif args.track_wandb:
             callbacks = [progress_callback, wandbc, auto_save_callback]
 
         elif args.track_local and args.envlogger:
-            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen)]
+            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen,lesson_buffer)]
         elif args.track_local:
             callbacks = [progress_callback, auto_save_callback]
 
