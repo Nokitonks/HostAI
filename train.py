@@ -150,6 +150,7 @@ def train(seed, args, shared_list):
                 n_epochs=args.n_epochs,
                 learning_rate=args.learning_rate,
                 )
+    model = MaskablePPO.load(args.log_dir + "best_model.zip", env=env)
 
     print("target kl and clip range are set to:", args.target_kl, args.clip_range)
 
@@ -157,7 +158,7 @@ def train(seed, args, shared_list):
 
 
     #Lesson buffer for RUDDER learning
-    lb_size = 64
+    lb_size = 264
     n_lstm = 16
     max_time = 100
     policy_lr = 0.1
@@ -167,7 +168,7 @@ def train(seed, args, shared_list):
 
     lesson_buffer = LessonBuffer(size=lb_size, max_time=max_time, n_features=env.get_state_shape()[-1])
 
-    rudder_lstm = RRLSTM(state_input_size=8, n_actions=env.get_n_actions()[-1], buffer=lesson_buffer, n_units=n_lstm,
+    rudder_lstm = RRLSTM(state_input_size=17290, n_actions=env.get_n_actions()[-1], buffer=lesson_buffer, n_units=n_lstm,
                        lstm_lr=lstm_lr, l2_regularization=l2_regularization, return_scaling=10,
                        lstm_batch_size=8, continuous_pred_factor=0.5)
     RudderCallback = RudderManager(True,lesson_buffer,rudder_lstm)

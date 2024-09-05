@@ -43,14 +43,7 @@ class RRLSTM(nn.Module):
     def forward(self, input,state_mapping):
         states, actions = input
         # Prepare input features
-        print(select_features_from_flattened(states,state_mapping,['tables_table_5_table_combined_size']))
-        repaired = states[:, :, 0:1]
-        transport_cond = states[:, :, 1:3]
-        brands = to_one_hot(states[:, :, 3], 4)
-        time = states[:, :, 4:] / states.shape[1]
-        states = torch.cat([repaired, transport_cond, brands, time], 2)
         actions = to_one_hot(actions, self.n_actions)
-        actions = torch.cat((actions, torch.zeros((actions.shape[0], 1, self.n_actions))), 1)
         input = torch.cat((states, actions), 2)
         # Run the lstm
         lstm_out = self.lstm.forward(input, return_all_seq_pos=True)
@@ -83,7 +76,6 @@ class RRLSTM(nn.Module):
             i += 1
             self.lstm_updates += 1
             self.optimizer.zero_grad()
-
             # Get samples from the lesson buffer and prepare them.
             states, actions, rewards, length = self.buffer.sample(self.lstm_batch_size)
             length = length[:, 0]
@@ -93,7 +85,6 @@ class RRLSTM(nn.Module):
 
             # Scale the returns as they might have high / low values.
             returns = torch.sum(rewards_var, 1, keepdim=True) / self.return_scaling
-
             # Calculate differences of states
             delta_states = torch.cat([states_var[:, 0:1, :], states_var[:, 1:, :] - states_var[:, :-1, :]], dim=1)
 
@@ -125,7 +116,7 @@ class LessonBuffer:
     def __init__(self, size, max_time, n_features):
         self.size = size
         # Samples, time, features
-        self.states_buffer = np.empty(shape=(size, max_time + 1, n_features))
+        self.states_buffer = np.empty(shape=(size, max_time , n_features))
         self.actions_buffer = np.empty(shape=(size, max_time))
         self.rewards_buffer = np.empty(shape=(size, max_time))
         self.lens_buffer = np.empty(shape=(size, 1), dtype=np.int32)

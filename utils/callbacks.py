@@ -213,6 +213,7 @@ class RudderManager(BaseCallback):
                 states = np.stack(self.seq_state)
                 actions = np.array(self.seq_action)
                 rewards = np.array(self.seq_reward)
+                print(states.shape, actions.shape, rewards.shape)
                 self.lesson_buffer.add(states=states, actions=actions, rewards=rewards)
                 if self.lesson_buffer.different_returns_encountered() and self.lesson_buffer.full_enough():
 
@@ -224,7 +225,7 @@ class RudderManager(BaseCallback):
                         # Then the LSTM is used to redistribute the reward.
                         rewards = self.lstm.redistribute_reward(states=np.expand_dims(states, 0),
                                                        actions=np.expand_dims(actions, 0),state_mapping=self.mapping)[0, :]
-                        print(f"\n Rewards Redis = {rewards}\n")
+                        print(rewards)
 
                 self.seq_action, self.seq_state, self.seq_reward = [], [], []
                 self.episode_num += 1

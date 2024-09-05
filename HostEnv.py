@@ -6,7 +6,26 @@ from ClassDefinitions import *
 import logging
 from ModelingFunctions import get_busyness
 from gymnasium.spaces.utils import flatten
-
+hard_code_rew = [ 1.0499e+01,  5.6138e+00,  5.8108e+00,  5.8805e+00,  8.5557e-01,
+         4.4992e+00, -5.6754e+00,  1.9406e+00,  1.7596e+00, -1.6481e-01,
+         5.9192e-02,  7.2112e-02, -1.0781e+00,  5.0928e-01, -5.4420e-01,
+        -4.3247e-01,  6.0848e-01, -2.2424e-01,  3.0479e-01, -2.1502e-01,
+        -1.3480e-02, -2.9192e-02,  3.7632e-01, -2.5408e-01,  2.0873e-01,
+        -1.6766e-01,  4.4328e-01, -1.5010e-01,  2.8058e-01, -6.9451e-02,
+         4.9992e-01, -8.9021e-02, -1.3998e+00,  1.2097e-01, -5.8286e-01,
+         1.0435e+00, -4.1428e-01,  1.1636e-01, -6.1096e-01,  2.4278e-01,
+        -3.6461e-01,  7.3043e-01,  1.3292e-01, -2.2069e-01,  2.0709e-01,
+        -2.0533e-01,  3.2526e-01, -1.5541e-01,  1.6565e-01, -1.6276e-01,
+         1.2570e-01, -6.4521e-02, -2.7650e-01,  2.1421e-01,  8.6858e-02,
+        -1.0430e-01,  5.7223e-02, -1.7776e-01,  1.5120e-01, -1.4219e-01,
+         1.2851e-03, -3.4630e-02,  8.1086e-02, -4.0774e-02,  4.8585e-02,
+        -3.6287e-03,  9.7382e-02, -7.8659e-02,  6.8550e-02, -1.7913e-01,
+         4.0960e-02,  3.1409e-02, -4.8864e-02,  5.5387e-02,  1.5659e-02,
+         3.9082e-02,  3.4313e-02, -2.0388e-01,  1.2652e-01, -5.9516e-02,
+         3.6662e-02, -4.3304e-02, -6.3896e-04,  1.0293e-01,  2.9039e-03,
+        -4.0541e-02,  9.3007e-02, -1.3080e-02, -1.2519e-01,  2.0061e-01,
+        -3.7539e-02,  8.1422e-02, -4.3015e-02,  4.4906e-02,  2.5008e-02,
+         3.1915e-02, -8.7311e-02,  3.2592e-03, -7.3719e-03]
 class HostWorldEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
 
@@ -194,7 +213,7 @@ class HostWorldEnv(gym.Env):
         if (reward == -1):
             for i in range(1):
                 self.advance_time()
-            reward = 0
+           # reward = 0
         # For debugging etc purposes
         info = {}
         reward += self.update_tables()
@@ -215,12 +234,11 @@ class HostWorldEnv(gym.Env):
         """
         #Override for RUDDER PRACTICE- >>>>
         #reward = 0
-
         if self.n_steps == 1:
             total_num_served = 0
             for party in self.served:
                 total_num_served += party.num_people
-            #reward = total_num_served
+            reward = total_num_served
         if self.n_steps ==0:
             done = True
 
