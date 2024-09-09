@@ -5,13 +5,16 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import SubprocVecEnv
-from BasicRestaurant1 import BasicRestaurantTables
+
+from BasicHost import BasicHost
+from BasicRestaurant1 import BasicRestaurantTables, MBPostTables
 from HostEnv import HostWorldEnv, mask_fn
 import wandb
 from wandb.integration.sb3 import WandbCallback
 import datetime
 from rudder import LessonBuffer, RRLSTM
 from utils.callbacks import EnvLogger, SaveOnBestTrainingRewardCallback, ProgressBarManager, RudderManager
+from csv_generators import *
 
 
 def train(seed, args, shared_list):
@@ -21,14 +24,14 @@ def train(seed, args, shared_list):
     log_dir_statevar = args.log_dir + 'statevar/'
 
     immutable_settings = {
-        'tables': BasicRestaurantTables().tables,
+        'tables': MBPostTables().tables,
         'max_party_size': 8,
-        'max_time': 200,
-        'max_wait_list': 20,
-        'max_res_list': 20,
+        'max_time': 100,
+        'max_wait_list': 80,
+        'max_res_list': 80,
         'window_size': (640, 480),
         "grid_size": 50,
-        'n_steps': 100,
+        'n_steps': 120,
         'wait_quote_min':10,
         'wait_quote_max': 90,
         'wait_quote_step': 5
@@ -37,23 +40,31 @@ def train(seed, args, shared_list):
         "clean_time": {2: 1,
                        4: 5,
                        6: 5,
-                       8: 5},
+                       8: 5,
+                       10: 5,
+                       12: 5,
+                       14: 5,
+                       16: 5,
+                       18: 5,
+                       20: 5,
+                       22: 5,
+                       24: 5,
+                       },
         "wait_tolerance": 10,
-        "reservations_path": 'reservation_files/reservations(1).csv',
+        "reservations_path": 'reservation_files/reservations(5).csv',
         "log_dir": args.log_dir,
         "end_time": 80,
         'walk_ins_path': 'walk_in_files/walk_ins.csv',
         'num_servers':2,
-        'server_sections':{'1':0,
-                           '2':0,
-                           '3':0,
-                           '4':0,
-                           '5':1,
-                           '6':1,
-                           '7':1,
-                           '8':1,
-                           '10':0,
-                           '11':1
+        'server_sections':{'1':0,'2':0,'3':0,'4':0,'5':0,'6':0,'7':0,'8':0,'9':0,'10':0,'11':0,'12':0,
+                           '20': 0, '21': 0, '22': 0, '23': 0, '24': 0, '25': 0, '26': 0,
+                           '30': 0, '31': 0, '32': 0, '33': 0, '34': 0, '35': 0, '36': 0,
+                           '40': 0, '41': 0, '42': 0, '43': 0,
+                           '51': 1, '52': 1, '53': 1, '54': 1, '55': 1, '56': 1, '61': 1,'62':1,
+                           '71': 1, '72': 1, '73': 1, '74': 1, '75': 1, '76': 1,
+                           '86': 1, '81': 1, '82': 1, '83': 1, '84': 1, '85': 1,
+                           '90': 1, '91': 1, '92': 1, '93': 1, '94': 1, '95': 1,
+                           '96': 1
                            },
         'CL_step': args.CL_step
     }
@@ -62,6 +73,9 @@ def train(seed, args, shared_list):
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
     env = Monitor(env, default_mutable_settings['log_dir'])
 
+    if args.human_player:
+        host = BasicHost(env,0)
+        host.run_episode()
     """
     Function to create environment and wrap it with a monitor
     """
@@ -150,7 +164,7 @@ def train(seed, args, shared_list):
                 n_epochs=args.n_epochs,
                 learning_rate=args.learning_rate,
                 )
-    model = MaskablePPO.load(args.log_dir + "best_model.zip", env=env)
+    #model = MaskablePPO.load(args.log_dir + "best_model.zip", env=env)
 
     print("target kl and clip range are set to:", args.target_kl, args.clip_range)
 
@@ -166,17 +180,18 @@ def train(seed, args, shared_list):
     l2_regularization = 1e-6
     avg_window = 750
 
+    print(f"Action size = {env.get_n_actions()[-1]}, State size = {env.get_state_shape()[-1]}\n")
     lesson_buffer = LessonBuffer(size=lb_size, max_time=max_time, n_features=env.get_state_shape()[-1])
 
-    rudder_lstm = RRLSTM(state_input_size=17290, n_actions=env.get_n_actions()[-1], buffer=lesson_buffer, n_units=n_lstm,
+    rudder_lstm = RRLSTM(state_input_size=env.get_state_shape()[-1], n_actions=env.get_n_actions()[-1], buffer=lesson_buffer, n_units=n_lstm,
                        lstm_lr=lstm_lr, l2_regularization=l2_regularization, return_scaling=10,
                        lstm_batch_size=8, continuous_pred_factor=0.5)
-    RudderCallback = RudderManager(True,lesson_buffer,rudder_lstm)
+    RudderCallback = RudderManager(False,lesson_buffer,rudder_lstm)
     start = datetime.datetime.now()
 
     with ProgressBarManager(config["total_timesteps"]) as progress_callback:
         if args.track_wandb and args.envlogger:
-            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen,lesson_buffer),RudderCallback]
+            callbacks = [progress_callback, auto_save_callback, EnvLogger(args.envlogger_freq, log_dir_statevar,args.seq_gen,lesson_buffer)]
         elif args.track_wandb:
             callbacks = [progress_callback, wandbc, auto_save_callback]
 
@@ -194,7 +209,7 @@ def train(seed, args, shared_list):
     """
     # del the latest model and load the model with best episodic reward
     del model
-    model = MaskablePPO.load(args.log_dir + "best_model.zip", env=env)
+    model = MaskablePPO.load(args.log_dir + "basic_model.zip", env=env)
 
     if args.track_wandb:
         model.save(f"models/{run.id}")  # save the best model to models folder locally
@@ -296,12 +311,15 @@ if __name__ == '__main__':
         n_steps = 64
         target_kl = None
         n_epochs = 1
-        learning_rate = 0.001
+        learning_rate = 0.0011
         envlogger = True
         envlogger_freq = 100
         clip_range = 0.2
         track_local = True
         batch_size = 64
         seq_gen = True
+        human_player = True
 
+
+    create_reservation_list(5,100,125,2,[0,40])
     train(0,args,[])

@@ -55,12 +55,16 @@ class RRLSTM(nn.Module):
         delta_states = torch.cat([states_var[:, 0:1, :], states_var[:, 1:, :] - states_var[:, :-1, :]], dim=1)
         actions_var = Variable(torch.FloatTensor(actions)).detach()
 
+        print(f"{delta_states}\n")
+        print(f"{actions_var}\n")
         # Calculate LSTM predictions
         lstm_out = self.forward([delta_states, actions_var],state_mapping)
         pred_g0 = torch.cat([torch.zeros_like(lstm_out[:, 0:1, :]), lstm_out], dim=1)[:, :-1, :]
 
         # Difference of predictions of two consecutive timesteps.
         redistributed_reward = pred_g0[:, 1:, 0] - pred_g0[:, :-1, 0]
+
+        print(f"{redistributed_reward}\n")
 
         # Scale reward back up as LSTM targets have been scaled.
         new_reward = redistributed_reward * self.return_scaling

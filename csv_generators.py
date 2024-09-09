@@ -98,6 +98,7 @@ def create_reservation_list(seed,total_time,total_covers,push_num,push_times,
 
         writer.writeheader()
         writer.writerows(result)
+    return f'reservation_files/reservations({seed}).csv'
 
 
 def plot_reservation(res_list):

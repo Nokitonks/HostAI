@@ -188,7 +188,7 @@ class HostWorldEnv(gym.Env):
             f'table_{i}': spaces.Dict({
                 'status': spaces.Discrete(len(TableStatus)),
                 'party': party_space,
-                'table_combined_size': spaces.Discrete(max_party_size + 1)
+                'table_combined_size': spaces.Discrete(25)
             }) for i in range(num_tables)
                 }),
             'waitlist': spaces.Tuple([party_space for _ in range(max_wait_list)]),
@@ -238,7 +238,7 @@ class HostWorldEnv(gym.Env):
             total_num_served = 0
             for party in self.served:
                 total_num_served += party.num_people
-            reward = total_num_served
+            #reward = total_num_served
         if self.n_steps ==0:
             done = True
 

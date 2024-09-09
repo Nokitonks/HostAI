@@ -111,8 +111,14 @@ class Table(object):
             else:
                 self.status = TableStatus.READY
 
-        self.combined_with.remove(other_table)
-        other_table.combined_with.remove(self)
+        try:
+            self.combined_with.remove(other_table)
+        except:
+            pass
+        try:
+            other_table.combined_with.remove(self)
+        except:
+            pass
 
         return -1 ,False
 

@@ -225,7 +225,8 @@ class RudderManager(BaseCallback):
                         # Then the LSTM is used to redistribute the reward.
                         rewards = self.lstm.redistribute_reward(states=np.expand_dims(states, 0),
                                                        actions=np.expand_dims(actions, 0),state_mapping=self.mapping)[0, :]
-                        print(rewards)
+                        #For each action we take we want to redistribute that reward to it and combine with the state delta.
+
 
                 self.seq_action, self.seq_state, self.seq_reward = [], [], []
                 self.episode_num += 1

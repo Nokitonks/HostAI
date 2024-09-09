@@ -1,11 +1,7 @@
 num_people,reservation_time,name,dine_time,meal_split,status
-2,0,Susan Baker,20,10:20:20:40:10,CONFIRMED
-2,0,Michael Bradford,20,10:20:20:40:10,CONFIRMED
-2,0,Adrienne Bell,20,10:20:20:40:10,CONFIRMED
-2,0,Emily White,20,10:20:20:40:10,CONFIRMED
-4,0,Alan Williams,20,10:20:20:40:10,CONFIRMED
-4,0,Alan Williams,20,10:20:20:40:10,CONFIRMED
-2,0,Alan Williams,20,10:20:20:40:10,CONFIRMED
-2,0,Emily White,20,10:20:20:40:10,CONFIRMED
-2,0,Alan Williams,20,10:20:20:40:10,CONFIRMED
-2,0,Emily White,20,10:20:20:40:10,CONFIRMED
+2,0,Susan Baker,8,10:20:20:40:10,CONFIRMED
+2,0,Michael Bradford,8,10:20:20:40:10,CONFIRMED
+2,0,Adrienne Bell,8,10:20:20:40:10,CONFIRMED
+2,0,Emily White,8,10:20:20:40:10,CONFIRMED
+4,0,Alan Williams,8,10:20:20:40:10,CONFIRMED
+4,0,Alan Williams,8,10:20:20:40:10,CONFIRMED
