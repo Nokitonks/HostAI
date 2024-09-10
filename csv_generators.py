@@ -91,7 +91,7 @@ def create_reservation_list(seed,total_time,total_covers,push_num,push_times,
         result.append(rez)
 
     print(result)
-    plot_reservation(result)
+    #plot_reservation(result)
     with open(f'reservation_files/reservations({seed}).csv', 'w', newline='') as csvfile:
         fieldnames = result[0].keys()  # Extract headers from the first dictionary
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)

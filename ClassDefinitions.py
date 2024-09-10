@@ -580,6 +580,17 @@ class PartyPool(set):
         # Initialize additional attributes if needed
         self.party_size = party_size
 
+    def inspect_party(self):
+        """
+
+        :return: Gives the next party that will be popped out of the pool but notable does not remove it from the pool, merely for info purposes
+        """
+        best = None
+        for party in self:
+            if self._get_most_urgent(best,party) == party:
+                best = party
+        return best
+
     def _get_most_urgent(self,party1,party2):
         """
         :param party1: party 1
@@ -604,7 +615,6 @@ class PartyPool(set):
                 return party1
             else:
                 return party2
-
 
 
     def get_party(self):

@@ -4,6 +4,38 @@ import gymnasium as gym
 from gymnasium.spaces import Dict, Tuple, Box, Discrete
 
 
+def function_into_action_number(tables,unique_combos,immutable_config) -> dict:
+    cnt = 0
+    name = {}
+    size_dict = {
+        0:2,
+        1:4,
+        2:6,
+        3:8
+    }
+    for pools in range(4):
+        for table in tables:
+            name[f"assign_res_{size_dict[pools]}_table:{table.number}"] = cnt
+            cnt += 1
+    for pools in range(4):
+        for table in tables:
+            name[f"assign_walk-in_{size_dict[pools]}_table:{table.number}"] = cnt
+            cnt += 1
+    for pools in range(4):
+        for time in range(immutable_config['wait_quote_min'], immutable_config['wait_quote_max'],
+                          immutable_config['wait_quote_step']):
+            name[f"quote_wait_{time}_party_size:{size_dict[pools]}"] = cnt
+            cnt += 1
+    for pools in range(4):
+        name[f"deny_party_size:{size_dict[pools]}"] = cnt
+        cnt += 1
+    for combo in unique_combos:
+        name[f"combine_{combo[0].number}_with_{combo[1].number}"] = cnt
+        cnt += 1
+        name[f"uncombine_{combo[0].number}_with_{combo[1].number}"] = cnt
+        cnt += 1
+    name[f"advance_time"] = cnt
+    return name
 def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
     cnt = 0
     name = {}
@@ -88,6 +120,13 @@ def get_max_font_size(text, max_width, max_height, base_font_size):
         text_width, text_height = font.size(text)
 
     return font
+# Function to draw a button
+def draw_button(screen, text, x, y, w, h, color,text_color):
+    small_font = pygame.font.SysFont(None, 32)
+    pygame.draw.rect(screen, color, (x, y, w, h))
+    label = small_font.render(text, True, text_color)
+    screen.blit(label, (x + (w // 2 - label.get_width() // 2), y + (h // 2 - label.get_height() // 2)))
+    return pygame.Rect(x, y, w, h)
 
 def flat_obs_into_variable(obs):
 
