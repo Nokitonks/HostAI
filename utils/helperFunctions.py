@@ -35,6 +35,7 @@ def function_into_action_number(tables,unique_combos,immutable_config) -> dict:
         name[f"uncombine_{combo[0].number}_with_{combo[1].number}"] = cnt
         cnt += 1
     name[f"advance_time"] = cnt
+    print(name)
     return name
 def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
     cnt = 0
@@ -122,7 +123,7 @@ def get_max_font_size(text, max_width, max_height, base_font_size):
     return font
 # Function to draw a button
 def draw_button(screen, text, x, y, w, h, color,text_color):
-    small_font = pygame.font.SysFont(None, 32)
+    small_font = pygame.font.SysFont(None, 24)
     pygame.draw.rect(screen, color, (x, y, w, h))
     label = small_font.render(text, True, text_color)
     screen.blit(label, (x + (w // 2 - label.get_width() // 2), y + (h // 2 - label.get_height() // 2)))

@@ -205,7 +205,6 @@ class HostWorldEnv(gym.Env):
         self.n_steps -= 1
         # Default action means action will be None
 
-        print(action)
         # Call the handler function for the action with parameters
         if self.mutable_config['log_dir'] != '':
             logging.info(f"Taking action {self.action_handlers[action]}")
@@ -260,6 +259,8 @@ class HostWorldEnv(gym.Env):
             self.draw_grid(table_offset)
 
             for table in self.tables:
+                self.draw_background_table(table, table_offset)
+            for table in self.tables:
                 self.draw_table(table, table_offset)
             self.screen.set_clip(None)
 
@@ -301,7 +302,7 @@ class HostWorldEnv(gym.Env):
         self.selected_button = None
         self.buttons = []
         self.selected_table = None
-
+        self.selected_wait = None
         self.rez_party_pool_manager = PartyPoolManager(4,[2,4,6,8])
         self.walkin_party_pool_manager = PartyPoolManager(4,[2,4,6,8])
         self.clean_time = self.mutable_config['clean_time']
@@ -390,17 +391,16 @@ class HostWorldEnv(gym.Env):
                         x2, y2 = table.footprint[1]
                         table_rect = pygame.Rect(x1 * self.GRID_SIZE + self.TABLE_SECTION.x, y1 * self.GRID_SIZE + self.TABLE_SECTION.y,
                                                  (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
-
                         if table_rect.collidepoint(pos):
                             if self.selected_table == None:
                                 if self.selected_button is not None and table.status == TableStatus.READY and table.get_combined_size([]) >= int(self.selected_button[0][2:]):
-                                    if self.selected_button[0][0] == '0':
+                                    if self.selected_button[0][0] == '1':
                                         #Rez
                                         if len(self.rez_party_pool_manager.find_pool_for_size(int(self.selected_button[0][2:]))) > 0:
                                             ret = function_dict[f"assign_res_{self.selected_button[0][2:]}_table:{table.number}"]
                                             self.selected_button = None
                                             return ret
-                                    elif self.selected_button[0][0] == '1':
+                                    elif self.selected_button[0][0] == '0':
                                         #Walk-In
                                         if len(self.walkin_party_pool_manager.find_pool_for_size(int(self.selected_button[0][2:]))) > 0:
                                             ret = function_dict[f"assign_walk-in_{self.selected_button[0][2:]}_table:{table.number}"]
@@ -420,13 +420,41 @@ class HostWorldEnv(gym.Env):
                                             action = function_dict[f"combine_{self.selected_table.number}_with_{table.number}"]
                                         self.selected_table = None
                                         return action
+                                    elif table.can_uncombine_with(self.selected_table):
+                                        try:
+                                            action = function_dict[
+                                                f"uncombine_{table.number}_with_{self.selected_table.number}"]
+                                        except:
+                                            action = function_dict[
+                                                f"uncombine_{self.selected_table.number}_with_{table.number}"]
+                                        self.selected_table = None
+                                        return action
                                 else:
                                     self.selected_table = table
+                            self.selected_button = None
 
                 #Clicked on a party inside the party section
                 elif self.PARTY_SECTION.collidepoint(pos):
+                    for id, button in self.buttons:
+                        if button.collidepoint(pos) and id[0] == 'w':
+                            self.selected_wait = (id, button)
+                            break
                     self.select_button(pos)
+                    for id, button in self.buttons:
+                        if button.collidepoint(pos) and (id[0] == 'q'):
+                            if self.selected_button and self.selected_button[0][0] == '0':
+                                # We are selected a walk in party
+                                # Check to see if there is a party in that pool
+                                if len(self.walkin_party_pool_manager.find_pool_for_size(
+                                        int(self.selected_button[0][2:]))) > 0:
+                                    # Pool is not empty so lets quote a wait to that party
+                                    if self.selected_wait:
+                                        wait = self.selected_wait[0][2:]
+                                        action = function_dict[f"quote_wait_{wait}_party_size:{self.selected_button[0][2:]}"]
+                                        return action
                     self.selected_table = None
+                    return -1
+
 
 
             elif event.type == pygame.KEYUP:
@@ -441,10 +469,10 @@ class HostWorldEnv(gym.Env):
             if button.collidepoint(pos) and (id[0] == "1" or id[0] == "0"):
                 if self.selected_button == (id,button):
                     self.selected_button = None
-                self.selected_button = (id,button)
+                else:
+                    self.selected_button = (id,button)
                 return
-            else:
-                self.selected_button = None
+
     def default_action(self):
 
         self.advance_time()
@@ -725,11 +753,11 @@ class HostWorldEnv(gym.Env):
         deny_height = subsection_height / 8
         assign_height = subsection_height / 3
 
-        res_banner = draw_button(self.screen, "Walk-Ins", offset[0],offset[1]+subsection_height,
+        res_banner = draw_button(self.screen, "Reservations", offset[0],offset[1]+subsection_height,
                     section_width, sub_label_height, self.colors['GRAY'], self.colors['WHITE'])
         if ("_",res_banner) not in self.buttons:
             self.buttons.append(("_",res_banner))
-        walk_in_banner = draw_button(self.screen, "Reservations", offset[0],offset[1],
+        walk_in_banner = draw_button(self.screen, "Walk-Ins", offset[0],offset[1],
                     section_width, sub_label_height, self.colors['GRAY'], self.colors['WHITE'])
         if ("_",walk_in_banner) not in self.buttons:
             self.buttons.append(("_",walk_in_banner))
@@ -737,10 +765,31 @@ class HostWorldEnv(gym.Env):
                     section_width, quote_height, self.colors['GRAY'], self.colors['WHITE'])
         if ("quote",quote_wait_button) not in self.buttons:
             self.buttons.append(("quote",quote_wait_button))
-        slider_button = draw_button(self.screen, "Sliderrrr", offset[0],offset[1]+sub_label_height+assign_height+quote_height,
-                    section_width, slider_height, self.colors['ORANGE'], self.colors['WHITE'])
-        if ("slide",slider_button) not in self.buttons:
-            self.buttons.append(("slide",slider_button))
+        #Draw the buttons for wait times that we will need
+        wait_times = []
+        for time in range(self.immutable_config['wait_quote_min'], self.immutable_config['wait_quote_max'],
+                          self.immutable_config['wait_quote_step']):
+            wait_times.append(str(time))
+        num_rows = 2
+        button_width = section_width / len(wait_times) * num_rows
+        for index, time in enumerate(wait_times):
+            if index < (len(wait_times)/num_rows):
+                start_y = 0
+                second_half = 0
+            else:
+                start_y = slider_height/2
+                second_half = 1
+            if self.selected_wait and self.selected_wait[0][2:] == time:
+                color = self.colors["LIGHT_GREEN"]
+            else:
+                color = self.colors["GREEN"]
+            time_button = draw_button(self.screen, time, offset[0]+(button_width*index)-(section_width*second_half),
+                                      offset[1] + sub_label_height + assign_height + quote_height+start_y,
+                                      button_width, slider_height/2, color, self.colors['WHITE'])
+            if (f"w_{time}", time_button) not in self.buttons:
+                self.buttons.append((f"w_{time}", time_button))
+
+
         deny_button = draw_button(self.screen, "Deny Party", offset[0],offset[1]+sub_label_height+assign_height+quote_height+slider_height,
                     section_width, deny_height, self.colors['ORANGE'], self.colors['WHITE'])
         if ("deny",deny_button) not in self.buttons:
@@ -755,9 +804,9 @@ class HostWorldEnv(gym.Env):
                     self.buttons.append((f"{j}-{size}",party_pool_button))
                 if self.selected_button is not None and self.selected_button[1] == party_pool_button:
                     _ = draw_button(self.screen, size, button_rect.x,button_rect.y,button_rect.width,button_rect.height, self.colors['LIGHT_BLUE'],self.colors['WHITE'])
-                amt_in_pool = len(self.walkin_party_pool_manager.pools[i]) if j else len(self.rez_party_pool_manager.pools[i])
+                amt_in_pool = len(self.walkin_party_pool_manager.pools[i]) if not j else len(self.rez_party_pool_manager.pools[i])
                 try:
-                    happiness = self.walkin_party_pool_manager.pools[i].inspect_party().happiness if j else self.rez_party_pool_manager.pools[i].inspect_party().happiness
+                    happiness = self.walkin_party_pool_manager.pools[i].inspect_party().happiness if not j else self.rez_party_pool_manager.pools[i].inspect_party().happiness
                 except:
                     happiness = "_"
                 text_surface = self.font.render(f"{amt_in_pool}", True, self.colors['RED'])
@@ -774,6 +823,17 @@ class HostWorldEnv(gym.Env):
         clock_text = clock.get_time_str()
         clock_surface = pygame.font.SysFont(None,60).render(clock_text, True, self.colors['GREEN'])
         self.screen.blit(clock_surface, (self.PARTY_SECTION.width/2,self.PARTY_SECTION.height*7/8))
+    def draw_background_table(self,table,offset):
+        x1, y1 = table.footprint[0]
+        x2, y2 = table.footprint[1]
+        table_rect = pygame.Rect(x1 * self.GRID_SIZE + offset[0], y1 * self.GRID_SIZE + offset[1], (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
+        if table.status == TableStatus.COMBINED:
+            for combined_table in table.combined_with:
+                x1, y1 = combined_table.footprint[0]
+                x2, y2 = combined_table.footprint[1]
+                combined_table_rect = pygame.Rect(x1 * self.GRID_SIZE + offset[0], y1 * self.GRID_SIZE + offset[1],
+                                                  (x2 - x1) * self.GRID_SIZE, (y2 - y1) * self.GRID_SIZE)
+                pygame.draw.line(self.screen, self.colors['RED'], table_rect.center, combined_table_rect.center,width=20)
 
     def draw_table(self,table,offset):
         x1, y1 = table.footprint[0]

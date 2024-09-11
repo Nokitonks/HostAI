@@ -4,8 +4,9 @@ from gymnasium.wrappers import FlattenObservation
 from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import SubprocVecEnv
-
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecVideoRecorder
+from imitation.data import types, rollout
+from imitation.algorithms import bc
 from BasicHost import BasicHost
 from BasicRestaurant1 import BasicRestaurantTables, MBPostTables
 from HostEnv import HostWorldEnv, mask_fn
@@ -73,9 +74,10 @@ def train(seed, args, shared_list):
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
     env = Monitor(env, default_mutable_settings['log_dir'])
 
+
     if args.human_player:
-        host = BasicHost(env,0)
-        host.run_episode()
+        host = BasicHost(env,1)
+        bc_data_obs, bc_data_actions = host.run_episode()
     """
     Function to create environment and wrap it with a monitor
     """
@@ -150,6 +152,24 @@ def train(seed, args, shared_list):
 
     print("args.CL_step", args.CL_step)
 
+    """
+    Start with BC to initalize our model
+    """
+
+    if args.bc:
+        # Assuming you already have your human demonstrations in the form of `observations` and `actions`
+        # Create a demonstration dataset
+        infos = [{} for _ in range(len(bc_data_obs))]  # Empty dicts for each transition
+        dones = np.zeros(len(bc_data_obs), dtype=bool)  # Ensure 'dones' is boolean
+        transitions = types.Transitions(
+            obs=bc_data_obs,  # Human observations
+            acts=bc_data_actions,  # Human actions
+            next_obs=np.zeros_like(bc_data_obs),  # Dummy next observations (not needed)
+            dones=dones,  # Dummy done flags (not needed)
+            infos=infos
+        )
+
+
 
     model = MaskablePPO("MlpPolicy",
                 env,
@@ -164,7 +184,20 @@ def train(seed, args, shared_list):
                 n_epochs=args.n_epochs,
                 learning_rate=args.learning_rate,
                 )
-    #model = MaskablePPO.load(args.log_dir + "best_model.zip", env=env)
+    #model = MaskablePPO.load(args.log_dir + "ModelwithBC(1ep)30ksteps(101rew).zip", env=env)
+
+    if args.bc:
+        # Initialize behavior cloning with the same policy as PPO
+        bc_trainer = bc.BC(
+            observation_space=env.observation_space,
+            action_space=env.action_space,
+            demonstrations=transitions,
+            policy=model.policy,
+            rng=np.random.default_rng(0)
+        )
+
+        # Pretrain the PPO model using behavior cloning from human demonstrations
+        bc_trainer.train(n_epochs=100)  # Adjust the number of epochs as needed
 
     print("target kl and clip range are set to:", args.target_kl, args.clip_range)
 
@@ -302,7 +335,7 @@ if __name__ == '__main__':
     class args:
         log_dir = "./logs/"
         CL_step = 1
-        total_timesteps = 100000
+        total_timesteps = 30000
         track_wandb = True
         wandb_project_name = "hostai"
         wandb_entity = None
@@ -319,7 +352,8 @@ if __name__ == '__main__':
         batch_size = 64
         seq_gen = True
         human_player = True
+        bc = True
 
 
-    create_reservation_list(5,100,125,2,[0,40])
+    create_reservation_list(5,100,175,1,[0])
     train(0,args,[])

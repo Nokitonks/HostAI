@@ -170,8 +170,6 @@ class Table(object):
         :return: True if combinable, False otherwise.
         """
 
-        if not self.has_ready_node([]):
-            return False
         if other_table not in self.combined_with or other_table not in self.combined_with:
             return False
 
