@@ -1,3 +1,5 @@
+import sys
+
 import pandas as pd
 import pygame
 import numpy as np
@@ -10,6 +12,7 @@ class BasicHost(object):
     def __init__(self,env,ep_num):
         self.env = env
         self.ep_num = ep_num
+        pygame.init()
 
     def calc_action(self,env):
         return 0
@@ -23,7 +26,6 @@ class BasicHost(object):
         df = pd.DataFrame()
         self.action_dict = action_number_into_function(self.env.tables,self.env.unique_combos,self.env.immutable_config)
         self.function_dict = function_into_action_number(self.env.tables,self.env.unique_combos,self.env.immutable_config)
-        pygame.init()
         raw_obs = []
         raw_actions = []
         while(running):
@@ -53,10 +55,8 @@ class BasicHost(object):
                     running = False
 
             # Drawing code
-            pygame.display.flip()
             self.env.render()
 
-        pygame.quit()
         df.to_csv(f"solves/BasicHostSolve_{self.ep_num}.csv", index=False)
-        return np.array(raw_obs), np.array(raw_actions)
+        return raw_obs, raw_actions
 
