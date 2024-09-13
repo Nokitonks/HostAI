@@ -31,7 +31,7 @@ class TableStatus(Enum):
     COMBINED = 3
 
 class Table(object):
-    def __init__(self, footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
+    def __init__(self, number,footprint, size_px , desirability, type, combinable_with, party, status,clean_time=30,clean_progress=0):
         """
         :param footprint: The footprint the table will occupy on the floor plan specified as a (x,y) to (x2,y2)
             which are the top left and bottom right coords of the table
@@ -52,6 +52,7 @@ class Table(object):
 
         :param clean_progress: float representing the status of the table being cleaned (in seconds
         """
+        self.number = number
         self.footprint = footprint  # (x, y) to (x2, y2)
         self.size_px = size_px  # Integer
         self.desirability = desirability  # Integer (0-10)
@@ -110,10 +111,16 @@ class Table(object):
             else:
                 self.status = TableStatus.READY
 
-        self.combined_with.remove(other_table)
-        other_table.combined_with.remove(self)
+        try:
+            self.combined_with.remove(other_table)
+        except:
+            pass
+        try:
+            other_table.combined_with.remove(self)
+        except:
+            pass
 
-        return 0 ,False
+        return -1 ,False
 
     def combine_with(self,other_table):
         """
@@ -139,7 +146,7 @@ class Table(object):
         self.combined_with.append(other_table)
         other_table.combined_with.append(self)
 
-        return 0 ,False
+        return -1 ,False
 
     def make_combinable_with(self, other_table):
 
@@ -163,8 +170,6 @@ class Table(object):
         :return: True if combinable, False otherwise.
         """
 
-        if not self.has_ready_node([]):
-            return False
         if other_table not in self.combined_with or other_table not in self.combined_with:
             return False
 
@@ -285,7 +290,7 @@ class PartyStatus(Enum):
 
 
 class Party(object):
-    def __init__(self,name, num_people, reservation, checks, status, arrival_time, sat_time, leave_time, happiness, dine_time):
+    def __init__(self,name, num_people, reservation, table_pref,pref_locked, status, arrival_time, sat_time, leave_time, happiness, dine_time,meal_split):
         """
         :param name: The name of the party specified as a string
 
@@ -293,7 +298,9 @@ class Party(object):
 
         :param reservation: A reservation object that is tied to the party if it exists, if a walk-in this will be None
 
-        :param checks: A list of checks for the current table, is a list of Check objects
+        :param table_pref: The number of the preferred table.
+
+        :param table_locked: If this is true then happiness will be 0 if not sat at table_prefered
 
         :param status: Where the party is in their experience, whether it be main course or dessert. Specified by an enum of party_status
 
@@ -306,17 +313,21 @@ class Party(object):
         :param happiness: Rating of 1-10 based on how close the quoted wait time was to the actual time to seat
 
         :param dine_time: string representing how long it will take this party to eat their meal represented in minutes
+
+        :param meal_split: string of form - "a:b:c:d:e" where a is time it takes in state 1 (SEATED) and e is state 5 (CHECK_DROPPED) in the form of percentages of total dine_time
         """
         self.name = name # String
         self.num_people = num_people  # Integer
         self.reservation = reservation  # Reservation object or None
-        self.checks = checks  # List of Check objects
+        self.table_pref = table_pref
+        self.pref_locked = pref_locked
         self.status = PartyStatus(status)  # PartyStatus enum
         self.arrival_time = arrival_time  # String
         self.sat_time = sat_time  # String
         self.leave_time = leave_time  # String
         self.happiness = happiness  # Integer (1-10)
         self.dine_time = dine_time  #  Integer (minutes)
+        self.meal_split = meal_split # String (a:b:c:d:e)
 
 
     def __repr__(self):
@@ -329,6 +340,33 @@ class Party(object):
         :param new_status: The new status to update to, should be a value from PartyStatus.
         """
         self.status = PartyStatus(new_status)
+
+    def update_seated_status(self,seated_time,busyness,server_busyness):
+        """
+        Updates the status to reflect the meal_split numbers
+        :return: new status the party was changed to
+        """
+        # Our range is from 0 to dine_time
+        time_counter = 0
+        time_max = self.dine_time * busyness * server_busyness
+
+        #This is the range of indexes in the PartyStatus enum we want to capture
+        status_index = [2,3,4,5,6]
+
+        values = self.meal_split.split(":")
+        for index, val in enumerate(values):
+            percentage = float(val) / 100
+            time_counter += percentage * time_max
+            if seated_time <= time_counter:
+                new_status = PartyStatus(status_index[index])
+                self.update_status(new_status)
+                return new_status
+
+        self.update_status(PartyStatus.CHECK_DROPPED)
+        return PartyStatus.CHECK_DROPPED
+
+
+
 
     def calculate_wait_time(self):
         """
@@ -373,7 +411,7 @@ class Party(object):
 
 
 class Reservation(object):
-    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time):
+    def __init__(self, party_name, num_people, reservation_time, contact_info, special_requests, status,dine_time,meal_split):
         """
         :param party_name: The name of the party making the reservation, specified as a String
 
@@ -394,6 +432,7 @@ class Reservation(object):
         self.special_requests = special_requests  # String
         self.status = ReservationStatus(status)  # ReservationStatus enum
         self.dine_time = dine_time
+        self.meal_split = meal_split
 
     def __repr__(self):
         return (f"Reservation(party_name='{self.party_name}', num_people={self.num_people}, "
@@ -443,7 +482,8 @@ class ReservationStatus(Enum):
     PENDING = 0
     CONFIRMED = 1
     SEATED = 2
-    CANCELLED = 3
+    CANCELED = 3
+    WALK_IN = 4
 
 
 class Check(object):
@@ -538,16 +578,48 @@ class PartyPool(set):
         # Initialize additional attributes if needed
         self.party_size = party_size
 
-    def _get_most_urgent(self,option1,option2):
+    def inspect_party(self):
+        """
 
-        if not option1 : return option2
-        if not option2 : return option1
+        :return: Gives the next party that will be popped out of the pool but notable does not remove it from the pool, merely for info purposes
+        """
+        best = None
+        for party in self:
+            if self._get_most_urgent(best,party) == party:
+                best = party
+        return best
 
-        # Logic in here to determine which option is better
-        return option1
+    def _get_most_urgent(self,party1,party2):
+        """
+        :param party1: party 1
+        :param party2: party 2
+        :return: The most urgent party based on how close they are to reservation time if they are a reservation
+        Based on arrival time if they are a walk_in
+        """
+        if party1 == None: return party2
+        if party2 == None: return party1
+        if party1.reservation:
+            #Shouldnt have parties with no reservation and a reservation in same pool
+            if not party2.reservation: AssertionError(f"Party {party1} and Party {party2} are in the same pool but have conflicting reservations")
+
+            if party1.reservation.reservation_time < party2.reservation.reservation_time:
+                return party1
+            else:
+                return party2
+
+        #If we dont have a reservation we do it on arrival time
+        else:
+            if party1.arrival_time < party2.arrival_time:
+                return party1
+            else:
+                return party2
+
 
     def get_party(self):
-        # Define a custom method
+        """
+        Gets a party from the party pool WITHOUT replacement
+        :return: party selected
+        """
         best = None
         for party in self:
             if self._get_most_urgent(best,party) == party:

@@ -3,10 +3,9 @@
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
 from ClassDefinitions import *
-import pygame
 import sys
-from helperFunctions import *
-from datetime import datetime, timedelta
+from utils.helperFunctions import *
+from datetime import datetime
 import csv
 
 class Screen:
