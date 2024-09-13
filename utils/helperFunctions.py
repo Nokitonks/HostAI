@@ -35,7 +35,6 @@ def function_into_action_number(tables,unique_combos,immutable_config) -> dict:
         name[f"uncombine_{combo[0].number}_with_{combo[1].number}"] = cnt
         cnt += 1
     name[f"advance_time"] = cnt
-    print(name)
     return name
 def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
     cnt = 0
@@ -68,7 +67,6 @@ def action_number_into_function(tables,unique_combos,immutable_config) -> dict:
         name[cnt] = f"Uncombine Table{combo[0].number} with Table:{combo[1].number}"
         cnt += 1
     name[cnt] = "Default Action (Advance Time)"
-    print(name)
     return name
 
 

@@ -32,7 +32,7 @@ def train(seed, args, shared_list):
         'max_res_list': 80,
         'window_size': (1240, 1080),
         "grid_size": 35,
-        'n_steps': 120,
+        'n_steps': args.env_steps,
         'wait_quote_min':10,
         'wait_quote_max': 90,
         'wait_quote_step': 5
@@ -73,11 +73,22 @@ def train(seed, args, shared_list):
     env = FlattenObservation(env)
     env = ActionMasker(env, mask_fn)  # Wrap to enable masking
     env = Monitor(env, default_mutable_settings['log_dir'])
+    print("Observation shape:", env.observation_space.shape)
 
-
+    num_its = 2
+    bc_data_obs = []
+    bc_data_actions = []
+    infos = []
+    dones = []
     if args.human_player:
-        host = BasicHost(env,1)
-        bc_data_obs, bc_data_actions = host.run_episode()
+        for i in range(num_its):
+            host = BasicHost(env,i)
+            data_obs, data_actions = host.run_episode()
+            print(len(data_obs))
+            bc_data_obs.append(data_obs)
+            bc_data_actions.append(data_actions)
+
+
     """
     Function to create environment and wrap it with a monitor
     """
@@ -155,18 +166,22 @@ def train(seed, args, shared_list):
     """
     Start with BC to initalize our model
     """
-
     if args.bc:
+        # Flatten the (10, 25, 40165) observations to (250, 40165)
+        reshaped_observations = np.array(bc_data_obs).reshape(num_its * args.env_steps, env.observation_space.shape[0])
+
+        # Similarly, flatten the actions from (10, 25) to (250,)
+        reshaped_actions = np.array(bc_data_actions).reshape(num_its * args.env_steps)
+        infos = [{} for _ in range(len(reshaped_observations))]
+        dones = np.zeros(len(reshaped_observations), dtype=bool)
         # Assuming you already have your human demonstrations in the form of `observations` and `actions`
         # Create a demonstration dataset
-        infos = [{} for _ in range(len(bc_data_obs))]  # Empty dicts for each transition
-        dones = np.zeros(len(bc_data_obs), dtype=bool)  # Ensure 'dones' is boolean
         transitions = types.Transitions(
-            obs=bc_data_obs,  # Human observations
-            acts=bc_data_actions,  # Human actions
-            next_obs=np.zeros_like(bc_data_obs),  # Dummy next observations (not needed)
-            dones=dones,  # Dummy done flags (not needed)
-            infos=infos
+            obs=reshaped_observations,
+            acts=reshaped_actions,
+            next_obs=np.zeros_like(reshaped_observations),  # Dummy next observations (not needed)
+            dones=dones,
+            infos=np.array(infos)
         )
 
 
@@ -183,17 +198,20 @@ def train(seed, args, shared_list):
                 policy_kwargs=config["policy_kwargs"],
                 n_epochs=args.n_epochs,
                 learning_rate=args.learning_rate,
+                max_grad_norm=0.5,
                 )
-    #model = MaskablePPO.load(args.log_dir + "ModelwithBC(1ep)30ksteps(101rew).zip", env=env)
+    model = MaskablePPO.load(args.log_dir + "ShortEpModel.zip", env=env)
 
     if args.bc:
+
         # Initialize behavior cloning with the same policy as PPO
         bc_trainer = bc.BC(
             observation_space=env.observation_space,
             action_space=env.action_space,
             demonstrations=transitions,
             policy=model.policy,
-            rng=np.random.default_rng(0)
+            rng=np.random.default_rng(0),
+            batch_size=2
         )
 
         # Pretrain the PPO model using behavior cloning from human demonstrations
@@ -350,10 +368,11 @@ if __name__ == '__main__':
         clip_range = 0.2
         track_local = True
         batch_size = 64
+        env_steps = 100
         seq_gen = True
-        human_player = True
-        bc = True
+        human_player = False
+        bc = False
 
 
-    create_reservation_list(5,100,175,1,[0])
+    create_reservation_list(5,100,65,1,[0])
     train(0,args,[])
