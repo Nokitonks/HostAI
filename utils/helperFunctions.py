@@ -180,7 +180,6 @@ def create_flattened_mapping(space):
         mapping[key] = (current_idx, current_idx + size)
         current_idx += size
     return mapping
-
 def one_hot_to_int(one_hot_vector):
     """
     Convert a one-hot encoded vector (either list or NumPy array) to its corresponding integer value.

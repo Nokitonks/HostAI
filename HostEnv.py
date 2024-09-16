@@ -154,9 +154,8 @@ class HostWorldEnv(gym.Env):
         """
         We want to make sure that every episode has a set amount of steps in order for our sequence matching algorithm to work
         """
-        self.n_steps = self.immutable_config['n_steps']
         self.reset()
-
+        self.n_steps = 0
         # Setup Pygame
         pygame.init()
         self.screen = pygame.display.set_mode(self.immutable_config['window_size'])
@@ -181,13 +180,17 @@ class HostWorldEnv(gym.Env):
             'reservation': reservation_space
         })
 
+        table_party_space = spaces.Dict({
+            'sat_time': spaces.Discrete(max_time),
+            'has_reservation': spaces.Discrete(2)
+        })
 
         # Define the full observation space
         observation_space = spaces.Dict({
             'tables': spaces.Dict({
             f'table_{i}': spaces.Dict({
                 'status': spaces.Discrete(len(TableStatus)),
-                'party': party_space,
+                'party': table_party_space,
                 'table_combined_size': spaces.Discrete(25)
             }) for i in range(num_tables)
                 }),
@@ -200,22 +203,36 @@ class HostWorldEnv(gym.Env):
         return observation_space
 
     def step(self,action):
+        action_mask = self.get_action_mask()
+        if not any(action_mask):
+            done = True
+            reward = -10
+            info = {}
+            print(self.score)
+            self.reset()
+            return self._get_observation(), reward, done, True, info
         reward = 0
         done = False
-        self.n_steps -= 1
         # Default action means action will be None
-
         # Call the handler function for the action with parameters
         if self.mutable_config['log_dir'] != '':
             logging.info(f"Taking action {self.action_handlers[action]}")
         handler, params = self.action_handlers[action]
         reward, done = handler(**params)
+        self.n_steps = self.n_steps + 1
 
         # For debugging etc purposes
         info = {}
         reward += self.update_tables()
         self.update_arrivals()
         reward += self.update_parties()
+
+        self.score += reward
+        #For CL_PPO_RUDDER Phase_0
+        if self.mutable_config['phase'] == 0:
+            if (self.n_steps == len(self.tables)):
+                done = 1
+
         # We are trying just to finish after a number of steps
         """
         if self.universal_clock.current_time >= self.end_time:
@@ -229,16 +246,7 @@ class HostWorldEnv(gym.Env):
                     done = True
             pass
         """
-        #Override for RUDDER PRACTICE- >>>>
-        #reward = 0
-        if self.n_steps == 1:
-            total_num_served = 0
-            for party in self.served:
-                total_num_served += party.num_people
-            #reward = total_num_served
-        if self.n_steps ==0:
-            done = True
-        self.score += reward
+
         return self._get_observation(), reward, done, False, info
 
     def render(self, mode='human'):
@@ -332,7 +340,6 @@ class HostWorldEnv(gym.Env):
         # Parties are added to this list once they have finished eating and left
 
         self.served = []
-        self.n_steps = self.immutable_config['n_steps']
 
         # Beginning of game we read in the reservations and walk-ins for the evening
         reservations = self.read_reservations(self.mutable_config['reservations_path'])
@@ -348,6 +355,12 @@ class HostWorldEnv(gym.Env):
             self.walk_ins.append(party)
 
         self.universal_clock = UniversalClock(self.start_time,1)
+
+        self.n_steps = 0
+
+        _ = self.update_tables()
+        self.update_arrivals()
+        _ = self.update_parties()
 
         return self._get_observation(),{}
 
@@ -548,12 +561,12 @@ class HostWorldEnv(gym.Env):
         if self.mutable_config['log_dir'] != "":
             logging.info(f"Party {party.name} of size {party.num_people} has been seated at t={self.universal_clock.current_time}\n")
         # Needs to return a reward and a done
-        return reward * happiness_modifier, False
+        return reward , False
 
     def get_action_mask(self):
 
         # Generate our action mask
-        action_mask = [1] * (self.action_space.n )
+        action_mask = [0] * (self.action_space.n )
 
         cnt = 0
         val = 1
@@ -575,7 +588,8 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
-
+        if self.mutable_config['phase'] == 0:
+            return np.array(action_mask, dtype=np.int8)
         for pools in range(4):
             pool = self.walkin_party_pool_manager.pools[pools]
             for table_index in range(len(self.tables)):
@@ -631,6 +645,8 @@ class HostWorldEnv(gym.Env):
             action_mask[cnt] = val
             cnt += 1
 
+        #For default action
+        action_mask[cnt] = 1
         return np.array(action_mask,dtype=np.int8)
     def advance_time(self):
         #Update some happinesses of people waiting
@@ -909,6 +925,10 @@ class HostWorldEnv(gym.Env):
                 'reservation_status': 0
             }
         }
+        dummy_table_party = {
+            'sat_time': 0,
+            'has_reservation': 0,
+        }
         dummy_reservation = {
             'time_of_reservation': 0,
             'reservation_status':0
@@ -930,19 +950,11 @@ class HostWorldEnv(gym.Env):
             if table.party:
                 party = table.party
                 table_observation['party'] = {
-                    'size': party.num_people,
-                    'status': party.status.value,
-                    'arrival_time': int(party.arrival_time),
-                    'reservation': {
-                        'time_of_reservation': 0,
-                        'reservation_status': 0,
-                    }
+                    'sat_time': int(party.sat_time),
+                    'has_reservation': 1 if party.reservation else 0,
                 }
-                if party.reservation:
-                    table_observation['party']['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)
-                    table_observation['party']['reservation']['reservation_status'] = party.reservation.status.value
             else:
-                table_observation['party'] = dummy_party
+                table_observation['party'] = dummy_table_party
 
             observation['tables'][f'table_{table_idx}'] = table_observation
 

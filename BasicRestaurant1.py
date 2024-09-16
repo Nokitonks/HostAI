@@ -1,6 +1,6 @@
 from ClassDefinitions import *
 
-class MBPostTables(object):
+class MBPost(object):
     def __init__(self):
 
 
@@ -124,6 +124,18 @@ class MBPostTables(object):
                        table81,table82,table83,table84,table85,table86,
                        table90,table91,table92,table93,table94,table95,table96]
 
+        self.immutable_settings = {
+            'tables': self.tables,
+            'max_party_size': 8,
+            'max_time': 300,
+            'max_wait_list': 50,
+            'max_res_list': 100,
+            'window_size': (1240, 1080),
+            "grid_size": 35,
+            'wait_quote_min':10,
+            'wait_quote_max': 90,
+            'wait_quote_step': 5
+        }
 
 class BasicRestaurantTables(object):
     def __init__(self):

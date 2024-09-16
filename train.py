@@ -8,7 +8,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, VecVideoRecorder
 from imitation.data import types, rollout
 from imitation.algorithms import bc
 from BasicHost import BasicHost
-from BasicRestaurant1 import BasicRestaurantTables, MBPostTables
+from BasicRestaurant1 import BasicRestaurantTables, MBPost
 from HostEnv import HostWorldEnv, mask_fn
 import wandb
 from wandb.integration.sb3 import WandbCallback
@@ -25,7 +25,7 @@ def train(seed, args, shared_list):
     log_dir_statevar = args.log_dir + 'statevar/'
 
     immutable_settings = {
-        'tables': MBPostTables().tables,
+        'tables': MBPost().tables,
         'max_party_size': 8,
         'max_time': 100,
         'max_wait_list': 80,
@@ -117,13 +117,14 @@ def train(seed, args, shared_list):
                 'CL_step':args.CL_step
             }
             env = HostWorldEnv(immutable_config=immutable_settings, mutable_config=default_mutable_settings)
-            print("Here")
+            env = FlattenObservation(env)
+            env = ActionMasker(env, mask_fn)  # Wrap to enable masking
             env = Monitor(env, default_mutable_settings['log_dir'] + f"{rank}")
             return env
         return _init
 
     num_env = 3
-    # env = SubprocVecEnv([make_env(i) for i in range(num_env)])
+    #env = SubprocVecEnv([make_env(i) for i in range(num_env)])
     config = {
         "policy_type": "MlpPolicy",
         'total_timesteps': args.total_timesteps,
@@ -200,7 +201,7 @@ def train(seed, args, shared_list):
                 learning_rate=args.learning_rate,
                 max_grad_norm=0.5,
                 )
-    model = MaskablePPO.load(args.log_dir + "ShortEpModel.zip", env=env)
+    #model = MaskablePPO.load(args.log_dir + "ShortEpModel.zip", env=env)
 
     if args.bc:
 

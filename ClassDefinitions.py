@@ -186,6 +186,10 @@ class Table(object):
         if not self.has_ready_node([]) or not other_table.has_ready_node([]):
             return False
 
+        "Cant combine tables to more than 8 people"
+        if (self.get_combined_size([]) + other_table.get_combined_size([]) > 8):
+            return False
+
         # Tables have already been combined
         if self.is_connected_to(other_table,[]) or other_table.is_connected_to(self,[]):
             return False
@@ -627,3 +631,5 @@ class PartyPool(set):
         self.remove(best)
         return best
 
+class Algorithm(Enum):
+    CL_PPO_RUDDER_PHASE_0 = 0

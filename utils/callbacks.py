@@ -1,10 +1,14 @@
 import os
+import random
+
 from tqdm.auto import tqdm
 import numpy as np
 import pandas as pd
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from utils.helperFunctions import action_number_into_function,select_features_from_flattened
+from csv_generators import create_specific_reservations_list
+from ClassDefinitions import Algorithm
 import matplotlib.pyplot as plt
 import wandb
 
@@ -172,6 +176,60 @@ class ProgressBarManager(object):
         self.pbar.n = self.total_timesteps
         self.pbar.update(0)
         self.pbar.close()
+class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
+    """
+    This is the callback that generates a new reservation and or walk_in list every n_episodes
+    """
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,num_reservations):
+        super(CL_PPO_RUDDER_PHASE_0_Callback, self).__init__()
+        self.gen_reservations = gen_reservations
+        self.gen_freq_reservations = gen_freq_reservations
+        self.env_info = env_info
+        self.episode_num = 1
+        self.num_reservations = num_reservations
+        self.episode_rewards = []
+        self.reward_threshold = 114
+
+    def _on_step(self):
+
+
+        if self.episode_num % self.gen_freq_reservations == 0:
+            #We are going to rescramble the list every episode
+            total_reservations = []
+            for table in self.env_info['tables']:
+                total_reservations.append(table.size_px)
+
+            reservations = random.sample(total_reservations,len(total_reservations))
+
+            #Generate new reservation lists
+            config = {}
+            config['reservations'] = reservations
+            create_specific_reservations_list(Algorithm.CL_PPO_RUDDER_PHASE_0,config)
+        # Count episodes
+        if self.locals['dones'][0]:
+            self.episode_num += 1
+        return True
+
+    def _on_rollout_end(self):
+        # Called after each rollout
+        episode_rewards = np.array()
+        total_reward = np.sum(episode_rewards)
+
+        self.episode_rewards.append(total_reward)
+        print(episode_rewards)
+        # Compute the moving average reward over the last 100 episodes
+        if len(self.episode_rewards) >= 10:
+            avg_reward = np.mean(self.episode_rewards[-10:])
+
+            # Check if the average reward has reached the threshold
+            if avg_reward >= self.reward_threshold:
+                print(
+                    f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                self.model.env.close()  # Close environment
+                return False  # Stop training
+
+        return True  # Continue training
+
 
 class RudderManager(BaseCallback):
     """
