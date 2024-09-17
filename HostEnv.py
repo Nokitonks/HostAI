@@ -199,7 +199,6 @@ class HostWorldEnv(gym.Env):
             'current_time': spaces.Discrete(max_time*2)
         })
         self.flattened_mapping = create_flattened_mapping(observation_space)
-        print(self.flattened_mapping)
         return observation_space
 
     def step(self,action):
@@ -208,7 +207,6 @@ class HostWorldEnv(gym.Env):
             done = True
             reward = -10
             info = {}
-            print(self.score)
             self.reset()
             return self._get_observation(), reward, done, True, info
         reward = 0
@@ -229,7 +227,7 @@ class HostWorldEnv(gym.Env):
 
         self.score += reward
         #For CL_PPO_RUDDER Phase_0
-        if self.mutable_config['phase'] == 0:
+        if self.mutable_config['phase'] == '0a' or self.mutable_config['phase'] == '0b':
             if (self.n_steps == len(self.tables)):
                 done = 1
 
@@ -588,8 +586,12 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
-        if self.mutable_config['phase'] == 0:
+
+
+        if self.mutable_config['phase'] == '0a':
             return np.array(action_mask, dtype=np.int8)
+        if self.mutable_config['phase'] == '0b':
+            action_mask = [0] * (self.action_space.n)
         for pools in range(4):
             pool = self.walkin_party_pool_manager.pools[pools]
             for table_index in range(len(self.tables)):
@@ -608,6 +610,8 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
+        if self.mutable_config['phase'] == '0b':
+            return np.array(action_mask, dtype=np.int8)
 
         for pools in range(4):
             for time in range (self.immutable_config['wait_quote_min'], self.immutable_config['wait_quote_max'],self.immutable_config['wait_quote_step']):

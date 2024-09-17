@@ -30,20 +30,20 @@ if __name__ == '__main__':
         wandb_entity = None
         ent_coef = 0
         gamma = 0.99
-        n_steps = 64
+        n_steps = 128
         target_kl = None
         n_epochs = 1
-        learning_rate = 0.0011
+        learning_rate = 0.001
         envlogger = True
         envlogger_freq = 100
         clip_range = 0.2
         track_local = True
         batch_size = 64
         env_steps = 100
-        seq_gen = True
+        seq_gen = False
         human_player = False
         bc = False
-        phase = 0
+        phase = '0a'
         seed=42
         tensorboard_log = './logs/tensorboard/'
 

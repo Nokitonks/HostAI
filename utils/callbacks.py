@@ -180,7 +180,7 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
     """
     This is the callback that generates a new reservation and or walk_in list every n_episodes
     """
-    def __init__(self,gen_reservations,gen_freq_reservations,env_info,num_reservations):
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,num_reservations,sub_phase):
         super(CL_PPO_RUDDER_PHASE_0_Callback, self).__init__()
         self.gen_reservations = gen_reservations
         self.gen_freq_reservations = gen_freq_reservations
@@ -188,10 +188,14 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
         self.episode_num = 1
         self.num_reservations = num_reservations
         self.episode_rewards = []
-        self.reward_threshold = 114
+        self.current_return = 0
+        self.reward_threshold = 122
+        self.sub_phase = sub_phase
 
     def _on_step(self):
 
+
+        self.current_return += int(self.locals['rewards'][0])
 
         if self.episode_num % self.gen_freq_reservations == 0:
             #We are going to rescramble the list every episode
@@ -203,32 +207,29 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
 
             #Generate new reservation lists
             config = {}
-            config['reservations'] = reservations
+            config['reservations'] = []
+            config['walk_ins'] = []
+            if self.sub_phase == "a":
+                config['reservations'] = reservations
+            elif self.sub_phase == "b":
+                config['walk_ins'] = reservations
             create_specific_reservations_list(Algorithm.CL_PPO_RUDDER_PHASE_0,config)
+
         # Count episodes
         if self.locals['dones'][0]:
             self.episode_num += 1
+            self.episode_rewards.append(self.current_return)
+            self.current_return = 0
+            if len(self.episode_rewards) >= 25:
+                avg_reward = np.mean(self.episode_rewards[-25:])
+
+                # Check if the average reward has reached the threshold
+                if avg_reward >= self.reward_threshold:
+                    print(
+                        f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                    return False  # Stop training
         return True
 
-    def _on_rollout_end(self):
-        # Called after each rollout
-        episode_rewards = np.array()
-        total_reward = np.sum(episode_rewards)
-
-        self.episode_rewards.append(total_reward)
-        print(episode_rewards)
-        # Compute the moving average reward over the last 100 episodes
-        if len(self.episode_rewards) >= 10:
-            avg_reward = np.mean(self.episode_rewards[-10:])
-
-            # Check if the average reward has reached the threshold
-            if avg_reward >= self.reward_threshold:
-                print(
-                    f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
-                self.model.env.close()  # Close environment
-                return False  # Stop training
-
-        return True  # Continue training
 
 
 class RudderManager(BaseCallback):

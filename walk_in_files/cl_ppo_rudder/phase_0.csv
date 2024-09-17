@@ -1,1 +1,56 @@
-name,num_people,arrival_time,meal_split,dine_time
+num_people,arrival_time,name,dine_time,meal_split
+2,0,Marilyn King DDS,10,10:20:20:40:10
+2,0,Autumn Ward,10,10:20:20:40:10
+2,0,Julian Carey,10,10:20:20:40:10
+6,0,Carol Murray,10,10:20:20:40:10
+2,0,Jennifer Arias,10,10:20:20:40:10
+2,0,Corey Jones,10,10:20:20:40:10
+2,0,Mary West,10,10:20:20:40:10
+2,0,Kelly Stephenson,10,10:20:20:40:10
+2,0,Emily Lopez,10,10:20:20:40:10
+2,0,Erin Mason,10,10:20:20:40:10
+2,0,William Velasquez,10,10:20:20:40:10
+2,0,Michael Jones,10,10:20:20:40:10
+2,0,Kenneth Jackson,10,10:20:20:40:10
+2,0,Karen Gilbert,10,10:20:20:40:10
+2,0,Christopher Hall,10,10:20:20:40:10
+2,0,Shane Harris,10,10:20:20:40:10
+2,0,Andrea Jones,10,10:20:20:40:10
+2,0,Kayla Butler,10,10:20:20:40:10
+2,0,Ann Cook,10,10:20:20:40:10
+2,0,Robert Miles,10,10:20:20:40:10
+2,0,Jimmy Carroll,10,10:20:20:40:10
+2,0,Jacqueline Heath,10,10:20:20:40:10
+2,0,Brianna Ramos,10,10:20:20:40:10
+2,0,Debbie Cole,10,10:20:20:40:10
+2,0,Mary Jenkins,10,10:20:20:40:10
+2,0,Courtney Molina,10,10:20:20:40:10
+2,0,April Garcia,10,10:20:20:40:10
+2,0,Mr. Joshua Green DVM,10,10:20:20:40:10
+2,0,Patricia Johnson,10,10:20:20:40:10
+2,0,Jonathan Harrington,10,10:20:20:40:10
+2,0,Nichole Fernandez,10,10:20:20:40:10
+2,0,Edward Rasmussen,10,10:20:20:40:10
+2,0,Nicole Walker,10,10:20:20:40:10
+2,0,Leslie Rivera,10,10:20:20:40:10
+2,0,Kathy Patrick,10,10:20:20:40:10
+2,0,Isabella Bennett,10,10:20:20:40:10
+2,0,Susan Johnson,10,10:20:20:40:10
+2,0,Charles Chambers,10,10:20:20:40:10
+2,0,Maria Taylor,10,10:20:20:40:10
+2,0,Jessica Mendez,10,10:20:20:40:10
+2,0,Matthew Herrera,10,10:20:20:40:10
+2,0,Charles Beasley,10,10:20:20:40:10
+2,0,Susan Lopez,10,10:20:20:40:10
+2,0,Jody Cooke,10,10:20:20:40:10
+2,0,Lisa Jones,10,10:20:20:40:10
+2,0,Jessica Hurley,10,10:20:20:40:10
+2,0,Wendy Baker,10,10:20:20:40:10
+2,0,Denise Santiago,10,10:20:20:40:10
+6,0,Dustin Douglas,10,10:20:20:40:10
+2,0,Melanie Woodward,10,10:20:20:40:10
+2,0,Michael Williams,10,10:20:20:40:10
+6,0,Felicia Martin,10,10:20:20:40:10
+2,0,William Owens,10,10:20:20:40:10
+2,0,Wendy Ramsey,10,10:20:20:40:10
+2,0,Robert Marshall,10,10:20:20:40:10

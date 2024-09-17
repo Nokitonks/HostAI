@@ -2,7 +2,23 @@ import pygame
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Dict, Tuple, Box, Discrete
+import csv
+def clear_csv_file_keep_headers(file_path):
+    """
+    Clears the content of a CSV file but keeps the headers.
 
+    Parameters:
+    file_path (str): The path to the CSV file to be cleared.
+    """
+    # Read the headers of the CSV file
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        headers = next(reader)  # Read the first row, which is the header
+
+    # Open the file in write mode and write the headers back
+    with open(file_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(headers)  # Write the headers back to the file
 
 def function_into_action_number(tables,unique_combos,immutable_config) -> dict:
     cnt = 0
