@@ -1,1 +1,2 @@
 num_people,reservation_time,name,dine_time,meal_split,status
+2,0,John Woods,10,10:20:20:40:10,CONFIRMED

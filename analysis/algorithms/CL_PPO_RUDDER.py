@@ -10,7 +10,7 @@ next model with the previous best model. In addition, for each sub-task we are g
 rewards to specific state-action pairs
 
 --------------
-Phase 0
+Phase 0a + 0b + 0c
 --------------
 
 Our goal for this section is to have the model the most basic parts of our environment. For this phase, the only available
@@ -19,19 +19,36 @@ actions will be assign_party actions. Essentially this is a puzzle where the mod
 There will always be enough space in the restaurant (without combining tables) to fit every single party
 space to fit all the reservations if the model sits people at tables that align with their size.
 
-We utilize RUDDER here to shape the rewards such that the earliest "action" in the sequence -> having a table available
-of for size of reservation at when the reservation is going to arrive. Final reward given at time that the table leaves the restaurant.
-
-These RUDDER sequences are collected only when the model has surpassed a certain score for the episode. The redistributed rewards are
-not applied until the next phase
-
 The model should ideally learn that sitting parties at different tables has the same expected reward.
 
 Once the model is able to sit every party at the full reservation size for a variety of different arrival times we can move to phase 1
 
+phase_0a and phase_0b differentiate learning the assign_reservation actions and the assign_walk_in actions and then
+phase_0c is a mix between the two.
+
 --------------
 Phase 2
 --------------
+
+We are now going to introduce time dependency into our model this means the model will be able to use the advance time action.
+In addition, we remove rewards from the initial assign action and only give the reward once the table has left. Hopefully the
+model should still be able to do resonably well because it has learned to use the assign actions. Should converge to the max
+value again.
+
+Parties will come in from a mix of walk-ins and reservations
+
+Most importantly in this step we are learning to train our LSTM such that it can redistribute the rewards backwards in time
+to initial actions
+
+** Lets think **
+Do we actually need to train our LSTM with this simplistic data? Maybe. Will likely need to see if it can learn quick enough
+at the complex task level to see if it needs this initial training or not. TBD
+
+
+
+
+
+
 """
 from gymnasium.wrappers import FlattenObservation
 from sb3_contrib import MaskablePPO
@@ -40,7 +57,7 @@ from stable_baselines3.common.monitor import Monitor
 import wandb
 from BasicRestaurant1 import MBPost
 from HostEnv import HostWorldEnv, mask_fn
-from utils.callbacks import CL_PPO_RUDDER_PHASE_0_Callback, EnvLogger
+from utils.callbacks import CL_PPO_RUDDER_PHASE_0_Callback, EnvLogger, CL_PPO_RUDDER_PHASE_1_Callback
 from wandb.integration.sb3 import WandbCallback
 import torch
 
@@ -53,7 +70,7 @@ class CL_PPO_RUDDER(object):
         self.args = args
         self.phase = 0
         self.restaurant = restaurant
-        immutable_settings = restaurant.immutable_settings
+        self.immutable_settings = restaurant.immutable_settings
 
         """
         Below we have the settings for the first phase
@@ -78,7 +95,7 @@ class CL_PPO_RUDDER(object):
             table_number = table.number
             default_mutable_settings['server_sections'][str(table_number)] = 0
         self.mutable_settings = default_mutable_settings
-        env = HostWorldEnv(immutable_config=immutable_settings, mutable_config=default_mutable_settings)
+        env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=default_mutable_settings)
         env = FlattenObservation(env)
         env = ActionMasker(env, mask_fn)  # Wrap to enable masking
         env = Monitor(env, default_mutable_settings['log_dir'])
@@ -132,22 +149,53 @@ class CL_PPO_RUDDER(object):
         else:
             wandbc = None
 
-        phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,1,'a')
+        phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,'a',122)
         env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, None)
 
         ## Teach Phase 0a ###
-        self.model.learn(total_timesteps=100000000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
+        self.model.learn(total_timesteps=50000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
         #Will reach here once model has gotten 100% with the reservation sittings
         self.model.save('models/cl_ppo_rudder/phase_0a')
 
         clear_csv_file_keep_headers('reservation_files/cl_ppo_rudder/phase_0.csv')
-        phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,1,'b')
+        phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,'b',122)
 
-        run.name = 'cl_ppo_rudder_phase_0b'
         self.env.mutable_config['phase'] = "0b"
         self.env.reset()
         ## Teach Phase 0b ###
-        self.model.learn(total_timesteps=100000000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
+        self.model.learn(total_timesteps=50000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
         self.model.save('models/cl_ppo_rudder/phase_0b')
 
+        phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,'c',122)
+        self.env.mutable_config['phase'] = "0c"
+        self.env.reset()
+        ## Teach Phase 0b ###
+        self.model.learn(total_timesteps=50000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_0c')
+
+        return True
+
+    def run_phase_1(self):
+
+        info = {}
+        info['tables'] = self.env.tables
+        self.mutable_settings['reservations_path'] = 'reservation_files/cl_ppo_rudder/phase_1.csv'
+        self.mutable_settings['walk_ins_path'] = 'walk_in_files/cl_ppo_rudder/phase_1.csv'
+        self.mutable_settings['end_time'] = 20
+        self.mutable_settings['phase'] = '1a'
+
+        env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=self.mutable_settings)
+        env = FlattenObservation(env)
+        env = ActionMasker(env, mask_fn)  # Wrap to enable masking
+        env = Monitor(env, self.mutable_settings['log_dir'])
+        self.env = env
+        self.env.reset()
+        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_0c', env=self.env)
+        phase_1_callback = CL_PPO_RUDDER_PHASE_1_Callback(True,20,info,'a',122)
+        env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, None)
+
+        ## Teach Phase 0a ###
+        self.model.learn(total_timesteps=100000, callback=[phase_1_callback,env_logger], progress_bar=True)
+        #Will reach here once model has gotten 100% with the reservation sittings
+        self.model.save('models/cl_ppo_rudder/phase_1a')
         pass

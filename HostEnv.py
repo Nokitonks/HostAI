@@ -226,16 +226,16 @@ class HostWorldEnv(gym.Env):
         reward += self.update_parties()
 
         self.score += reward
+
         #For CL_PPO_RUDDER Phase_0
-        if self.mutable_config['phase'] == '0a' or self.mutable_config['phase'] == '0b':
+        # We are trying just to finish after a number of steps
+        if self.mutable_config['phase'] == '0a' or self.mutable_config['phase'] == '0b' or self.mutable_config['phase'] == '0c':
+            # Need to make sure we have reached the total actions
             if (self.n_steps == len(self.tables)):
                 done = 1
 
-        # We are trying just to finish after a number of steps
-        """
         if self.universal_clock.current_time >= self.end_time:
             # Game Over
-            # Need to make sure we have reached the total actions
             if len(self.waitlist) == 0:
                 for table in self.tables:
                     if table.status != TableStatus.READY and table.status != TableStatus.COMBINED:
@@ -243,7 +243,6 @@ class HostWorldEnv(gym.Env):
                         break
                     done = True
             pass
-        """
 
         return self._get_observation(), reward, done, False, info
 
@@ -470,7 +469,6 @@ class HostWorldEnv(gym.Env):
 
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_SPACE:
-                    print(f"Took action Advance Time")
                     return function_dict["advance_time"]
 
         return -1
@@ -552,17 +550,21 @@ class HostWorldEnv(gym.Env):
 
         #Get the server for that table and make them a little busyier
         server_num = self.server_sections[str(table.number)]
-        self.server_busyness[server_num] += party.num_people
+        if self.mutable_config['phase'][0] == '3':
+            self.server_busyness[server_num] += party.num_people
 
         reward = party.num_people
         happiness_modifier = (party.happiness / 10)
         if self.mutable_config['log_dir'] != "":
             logging.info(f"Party {party.name} of size {party.num_people} has been seated at t={self.universal_clock.current_time}\n")
         # Needs to return a reward and a done
-        return reward , False
+        if self.mutable_config['phase'][0] == '0':
+            return reward , False
+        elif self.mutable_config['phase'][0] == '1':
+            return 0, False
+
 
     def get_action_mask(self):
-
         # Generate our action mask
         action_mask = [0] * (self.action_space.n )
 
@@ -586,12 +588,7 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
-
-
-        if self.mutable_config['phase'] == '0a':
-            return np.array(action_mask, dtype=np.int8)
-        if self.mutable_config['phase'] == '0b':
-            action_mask = [0] * (self.action_space.n)
+        res_assign = cnt
         for pools in range(4):
             pool = self.walkin_party_pool_manager.pools[pools]
             for table_index in range(len(self.tables)):
@@ -610,9 +607,7 @@ class HostWorldEnv(gym.Env):
 
                 action_mask[cnt] = val
                 cnt += 1
-        if self.mutable_config['phase'] == '0b':
-            return np.array(action_mask, dtype=np.int8)
-
+        walk_in_assign = cnt
         for pools in range(4):
             for time in range (self.immutable_config['wait_quote_min'], self.immutable_config['wait_quote_max'],self.immutable_config['wait_quote_step']):
                 pool = self.walkin_party_pool_manager.pools[pools]
@@ -623,6 +618,7 @@ class HostWorldEnv(gym.Env):
                     val = 0
                 action_mask[cnt] = val
                 cnt += 1
+        quote_wait = cnt
         for pools in range(4):
             pool = self.walkin_party_pool_manager.pools[pools]
             val = 1
@@ -630,6 +626,7 @@ class HostWorldEnv(gym.Env):
                 val = 0
             action_mask[cnt] = val
             cnt += 1
+        deny_party = cnt
         for combo in self.unique_combos:
             # This is the combine action between combo[0] and combo[1]
             if combo[0].can_combine_with(combo[1]):
@@ -648,10 +645,24 @@ class HostWorldEnv(gym.Env):
 
             action_mask[cnt] = val
             cnt += 1
+        combines = cnt
 
         #For default action
         action_mask[cnt] = 1
-        return np.array(action_mask,dtype=np.int8)
+        mask = np.zeros(cnt+1,dtype=np.int16)
+
+        action_mask = np.array(action_mask,dtype=np.int16)
+        if self.mutable_config['phase'] == '0a':
+            mask[:res_assign] = 1
+        elif self.mutable_config['phase'] == '0b':
+            mask[res_assign:walk_in_assign] = 1
+        elif self.mutable_config['phase'] == '0c':
+            mask[:walk_in_assign] = 1
+        elif self.mutable_config['phase'][0] == '1':
+            mask[:walk_in_assign] = 1
+            mask[cnt] = 1
+        ret_array  = np.bitwise_and(action_mask, mask)
+        return ret_array
     def advance_time(self):
         #Update some happinesses of people waiting
         for party in self.waitlist:
@@ -728,7 +739,7 @@ class HostWorldEnv(gym.Env):
                 if time_seated >= table.party.dine_time:
 
                     # Update our score
-                    reward = self.score_party(table.party)
+                    reward += self.score_party(table.party)
 
                     # Add party to served list and set table to dirty
                     table.party.status = PartyStatus.LEFT
@@ -754,7 +765,10 @@ class HostWorldEnv(gym.Env):
 
         This is where we will implement how our scoring system works (Very important for eventual AI)
         """
-        return 0
+        ret = 0
+        if self.mutable_config['phase'][0] == '1':
+            ret = party.num_people
+        return ret
 
     def draw_grid(self,offset):
         for row in range(self.ROWS):

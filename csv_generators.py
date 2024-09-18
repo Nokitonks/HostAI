@@ -4,6 +4,8 @@ both learning and testing
 """
 
 import csv
+import random
+
 import pandas as pd
 from faker import Faker # For random names and such
 from scipy.stats import norm, beta, gamma
@@ -11,9 +13,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
 from ClassDefinitions import Algorithm
-def create_specific_reservations_list(algorithm,config):
-    if algorithm == Algorithm.CL_PPO_RUDDER_PHASE_0:
-
+def create_specific_reservations_list(algorithm,config,phase):
+    if algorithm == Algorithm.CL_PPO_RUDDER:
         result = []
         faker = Faker(seed=1)
         # loop through all the reservations and assign them to a reservation time
@@ -21,13 +22,16 @@ def create_specific_reservations_list(algorithm,config):
             for num in (config['reservations']):
                 rez = {}
                 rez['num_people'] = num
-                rez['reservation_time'] = 0
+                if phase == '0':
+                    rez['reservation_time'] = 10
+                elif phase == '1':
+                    rez['reservation_time'] = random.randint(0,19)
                 rez['name'] = faker.name()
                 rez['dine_time'] = 10
                 rez['meal_split'] = "10:20:20:40:10"  # TODO put in normal meal_split
                 rez['status'] = "CONFIRMED"
                 result.append(rez)
-            with open(f'reservation_files/cl_ppo_rudder/phase_0.csv', 'w', newline='') as csvfile:
+            with open(f'reservation_files/cl_ppo_rudder/phase_{phase}.csv', 'w', newline='') as csvfile:
                 fieldnames = result[0].keys()  # Extract headers from the first dictionary
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -39,12 +43,15 @@ def create_specific_reservations_list(algorithm,config):
             for num in (config['walk_ins']):
                 rez = {}
                 rez['num_people'] = num
-                rez['arrival_time'] = 0
+                if phase == '0':
+                    rez['arrival_time'] = 10
+                elif phase == '1':
+                    rez['arrival_time'] = random.randint(0,19)
                 rez['name'] = faker.name()
                 rez['dine_time'] = 10
                 rez['meal_split'] = "10:20:20:40:10"  # TODO put in normal meal_split
                 result.append(rez)
-            with open(f'walk_in_files/cl_ppo_rudder/phase_0.csv', 'w', newline='') as csvfile:
+            with open(f'walk_in_files/cl_ppo_rudder/phase_{phase}.csv', 'w', newline='') as csvfile:
                 fieldnames = result[0].keys()  # Extract headers from the first dictionary
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 

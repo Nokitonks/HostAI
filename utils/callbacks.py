@@ -180,16 +180,15 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
     """
     This is the callback that generates a new reservation and or walk_in list every n_episodes
     """
-    def __init__(self,gen_reservations,gen_freq_reservations,env_info,num_reservations,sub_phase):
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,sub_phase,conv_value):
         super(CL_PPO_RUDDER_PHASE_0_Callback, self).__init__()
         self.gen_reservations = gen_reservations
         self.gen_freq_reservations = gen_freq_reservations
         self.env_info = env_info
         self.episode_num = 1
-        self.num_reservations = num_reservations
         self.episode_rewards = []
         self.current_return = 0
-        self.reward_threshold = 122
+        self.reward_threshold = conv_value
         self.sub_phase = sub_phase
 
     def _on_step(self):
@@ -203,17 +202,24 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
             for table in self.env_info['tables']:
                 total_reservations.append(table.size_px)
 
-            reservations = random.sample(total_reservations,len(total_reservations))
-
-            #Generate new reservation lists
             config = {}
             config['reservations'] = []
             config['walk_ins'] = []
-            if self.sub_phase == "a":
-                config['reservations'] = reservations
-            elif self.sub_phase == "b":
-                config['walk_ins'] = reservations
-            create_specific_reservations_list(Algorithm.CL_PPO_RUDDER_PHASE_0,config)
+            if self.sub_phase == 'a':
+                config['reservations'] = random.sample(total_reservations,len(total_reservations))
+            elif self.sub_phase == 'b':
+                config['walk_ins'] = random.sample(total_reservations,len(total_reservations))
+            elif self.sub_phase == 'c':
+                num = random.randint(0,len(total_reservations))
+                for i in range(len(total_reservations)):
+                    ele = random.choice(total_reservations)
+                    total_reservations.remove(ele)
+                    if i <= num:
+                        config['reservations'].append(ele)
+                    else:
+                        config['walk_ins'].append(ele)
+
+            create_specific_reservations_list(Algorithm.CL_PPO_RUDDER,config,'0')
 
         # Count episodes
         if self.locals['dones'][0]:
@@ -231,6 +237,61 @@ class CL_PPO_RUDDER_PHASE_0_Callback(BaseCallback):
         return True
 
 
+class CL_PPO_RUDDER_PHASE_1_Callback(BaseCallback):
+    """
+    This is the callback that generates a new reservation and or walk_in list every n_episodes
+    """
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,sub_phase,conv_value):
+        super(CL_PPO_RUDDER_PHASE_1_Callback, self).__init__()
+        self.gen_reservations = gen_reservations
+        self.gen_freq_reservations = gen_freq_reservations
+        self.env_info = env_info
+        self.episode_num = 1
+        self.episode_rewards = []
+        self.current_return = 0
+        self.reward_threshold = conv_value
+        self.sub_phase = sub_phase
+
+    def _on_step(self):
+
+
+        self.current_return += int(self.locals['rewards'][0])
+
+        if self.episode_num % self.gen_freq_reservations == 0:
+            #We are going to rescramble the list every episode
+            total_reservations = []
+            for table in self.env_info['tables']:
+                total_reservations.append(table.size_px)
+
+            config = {}
+            config['reservations'] = []
+            config['walk_ins'] = []
+            if self.sub_phase == 'a':
+                num = random.randint(0,len(total_reservations))
+                for i in range(len(total_reservations)):
+                    ele = random.choice(total_reservations)
+                    total_reservations.remove(ele)
+                    if i < num:
+                        config['reservations'].append(ele)
+                    else:
+                        config['walk_ins'].append(ele)
+
+            create_specific_reservations_list(Algorithm.CL_PPO_RUDDER,config,'1')
+
+        # Count episodes
+        if self.locals['dones'][0]:
+            self.episode_num += 1
+            self.episode_rewards.append(self.current_return)
+            self.current_return = 0
+            if len(self.episode_rewards) >= 25:
+                avg_reward = np.mean(self.episode_rewards[-25:])
+
+                # Check if the average reward has reached the threshold
+                if avg_reward >= self.reward_threshold:
+                    print(
+                        f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                    return False  # Stop training
+        return True
 
 class RudderManager(BaseCallback):
     """

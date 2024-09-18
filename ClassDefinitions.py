@@ -632,4 +632,4 @@ class PartyPool(set):
         return best
 
 class Algorithm(Enum):
-    CL_PPO_RUDDER_PHASE_0 = 0
+    CL_PPO_RUDDER = 0

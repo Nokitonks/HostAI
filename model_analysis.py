@@ -48,4 +48,5 @@ if __name__ == '__main__':
         tensorboard_log = './logs/tensorboard/'
 
     cl_ppo_rudder = CL_PPO_RUDDER(args,restaurant=MBPost())
-    cl_ppo_rudder.run_phase_0()
+    #cl_ppo_rudder.run_phase_0()
+    cl_ppo_rudder.run_phase_1()
