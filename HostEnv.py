@@ -1,4 +1,6 @@
 import csv
+import random
+
 from utils.helperFunctions import *
 import gymnasium as gym
 from gymnasium import spaces
@@ -151,6 +153,10 @@ class HostWorldEnv(gym.Env):
                                                                self.immutable_config['max_res_list'])
         self.state = None
 
+        self.rudder_rewards = {}
+        for i in range(self.get_n_actions()[0]):
+            self.rudder_rewards[i] = 0
+
         """
         We want to make sure that every episode has a set amount of steps in order for our sequence matching algorithm to work
         """
@@ -161,6 +167,7 @@ class HostWorldEnv(gym.Env):
         self.screen = pygame.display.set_mode(self.immutable_config['window_size'])
         pygame.display.set_caption("Restaurant Environment")
         self.font = pygame.font.SysFont(None, 24)
+        self.render_mode = 'human'
 
     def set_mutable_config(self,config):
         self.mutable_config = config
@@ -168,7 +175,7 @@ class HostWorldEnv(gym.Env):
     def create_observation_space(self,num_tables, max_party_size, max_time, max_wait_list, max_reservation_list):
 
         reservation_space = spaces.Dict({
-            'time_of_reservation': spaces.Discrete(max_time),
+            'time_of_reservation': spaces.Discrete(max_time//15),
             'reservation_status': spaces.Discrete(len(ReservationStatus))
         })
 
@@ -205,7 +212,7 @@ class HostWorldEnv(gym.Env):
         action_mask = self.get_action_mask()
         if not any(action_mask):
             done = True
-            reward = -10
+            reward = 0
             info = {}
             self.reset()
             return self._get_observation(), reward, done, True, info
@@ -217,6 +224,7 @@ class HostWorldEnv(gym.Env):
             logging.info(f"Taking action {self.action_handlers[action]}")
         handler, params = self.action_handlers[action]
         reward, done = handler(**params)
+        reward += self.rudder_rewards[action]
         self.n_steps = self.n_steps + 1
 
         # For debugging etc purposes
@@ -232,7 +240,22 @@ class HostWorldEnv(gym.Env):
         if self.mutable_config['phase'] == '0a' or self.mutable_config['phase'] == '0b' or self.mutable_config['phase'] == '0c':
             # Need to make sure we have reached the total actions
             if (self.n_steps == len(self.tables)):
-                done = 1
+                done = True
+
+
+        #For CL_PPO_RUDDER Phase_1 (LSTM DATA COLLECTION)
+        if self.mutable_config['phase'][0] == '1':
+           if (self.n_steps == self.mutable_config['n_steps']):
+                done = True
+
+        if self.mutable_config['phase'] == '2a' :
+            # Need to make sure we have reached the total actions
+            if (self.n_steps == len(self.tables)):
+                done = True
+        #For CL_PPO_RUDDER Phase_1 (LSTM DATA COLLECTION)
+        if self.mutable_config['phase'][0] == '3':
+            if (self.n_steps == self.mutable_config['n_steps']):
+                done = True
 
         if self.universal_clock.current_time >= self.end_time:
             # Game Over
@@ -246,34 +269,37 @@ class HostWorldEnv(gym.Env):
 
         return self._get_observation(), reward, done, False, info
 
-    def render(self, mode='human'):
+    def render(self):
 
-        if mode == 'human':
-            self.screen.fill(self.colors['BLACK'])
+        self.screen.fill(self.colors['BLACK'])
 
-            # Draw party section
-            pygame.draw.rect(self.screen, self.colors['BLUE'], self.PARTY_SECTION, 2)
-            self.screen.set_clip(self.PARTY_SECTION)
-            self.screen.set_clip(None)
-            self.draw_parties((self.PARTY_SECTION.x, self.PARTY_SECTION.y))
+        # Draw party section
+        pygame.draw.rect(self.screen, self.colors['BLUE'], self.PARTY_SECTION, 2)
+        self.screen.set_clip(self.PARTY_SECTION)
+        self.screen.set_clip(None)
+        self.draw_parties((self.PARTY_SECTION.x, self.PARTY_SECTION.y))
 
-            # Draw table section
-            pygame.draw.rect(self.screen, self.colors['BLUE'], self.TABLE_SECTION, 2)
-            table_offset = (self.TABLE_SECTION.x, self.TABLE_SECTION.y)
-            self.screen.set_clip(self.TABLE_SECTION)
-            self.draw_grid(table_offset)
+        # Draw table section
+        pygame.draw.rect(self.screen, self.colors['BLUE'], self.TABLE_SECTION, 2)
+        table_offset = (self.TABLE_SECTION.x, self.TABLE_SECTION.y)
+        self.screen.set_clip(self.TABLE_SECTION)
+        self.draw_grid(table_offset)
 
-            for table in self.tables:
-                self.draw_background_table(table, table_offset)
-            for table in self.tables:
-                self.draw_table(table, table_offset)
-            self.screen.set_clip(None)
+        for table in self.tables:
+            self.draw_background_table(table, table_offset)
+        for table in self.tables:
+            self.draw_table(table, table_offset)
+        self.screen.set_clip(None)
 
 
-            # Draw universal clock
-            self.draw_universal_clock(self.universal_clock)
-            self.draw_score()
-            pygame.display.flip()
+        # Draw universal clock
+        self.draw_universal_clock(self.universal_clock)
+        self.draw_score()
+        if self.render_mode == 'human':
+                pygame.display.flip()
+        if self.render_mode == 'rgb_array':
+            pixels = np.array(pygame.surfarray.array3d(self.screen))
+            return np.transpose(pixels, (1, 0, 2))
 
 
     def reset(self,seed=None, options=None):
@@ -338,6 +364,19 @@ class HostWorldEnv(gym.Env):
 
         self.served = []
 
+        #Randomly mess up tables for learning uncombine action in phase 3:
+        if self.mutable_config['phase'][0] == '3':
+            for table in self.tables:
+                num = random.randint(0,1)
+                if num:
+                    #Combine a table with a random one of the list
+                    if len(table.combinable_with) > 0:
+                        combine_with = random.randint(0,len(table.combinable_with)-1)
+                        try:
+                            table.combine_with(table.combinable_with[combine_with])
+                        except:
+                            pass
+
         # Beginning of game we read in the reservations and walk-ins for the evening
         reservations = self.read_reservations(self.mutable_config['reservations_path'])
         self.reservations = sorted(reservations, key=lambda  x: x.reservation_time)
@@ -354,7 +393,6 @@ class HostWorldEnv(gym.Env):
         self.universal_clock = UniversalClock(self.start_time,1)
 
         self.n_steps = 0
-
         _ = self.update_tables()
         self.update_arrivals()
         _ = self.update_parties()
@@ -492,7 +530,7 @@ class HostWorldEnv(gym.Env):
             for table in self.tables:
                 if table.status == TableStatus.READY:
                     if party.num_people <= table.get_combined_size([]):
-                        reward = -1
+                        reward = 0
                         return reward, False
 
         #Advancing the clock when there is no possible way to seat people is positive task
@@ -550,18 +588,24 @@ class HostWorldEnv(gym.Env):
 
         #Get the server for that table and make them a little busyier
         server_num = self.server_sections[str(table.number)]
-        if self.mutable_config['phase'][0] == '3':
+        if self.mutable_config['phase'][0] == '4':
             self.server_busyness[server_num] += party.num_people
 
         reward = party.num_people
         happiness_modifier = (party.happiness / 10)
+        if self.mutable_config['phase'][0] == '3':
+            reward = happiness_modifier * party.num_people
         if self.mutable_config['log_dir'] != "":
             logging.info(f"Party {party.name} of size {party.num_people} has been seated at t={self.universal_clock.current_time}\n")
         # Needs to return a reward and a done
         if self.mutable_config['phase'][0] == '0':
             return reward , False
         elif self.mutable_config['phase'][0] == '1':
-            return 0, False
+            return reward, False
+        elif self.mutable_config['phase'][0] == '2':
+            return reward, False
+        else:
+            return reward, False
 
 
     def get_action_mask(self):
@@ -642,6 +686,8 @@ class HostWorldEnv(gym.Env):
                 val = 1
             else:
                 val = 0
+            if (self.mutable_config['phase'][0] == '2'):
+                val = 0
 
             action_mask[cnt] = val
             cnt += 1
@@ -661,7 +707,16 @@ class HostWorldEnv(gym.Env):
         elif self.mutable_config['phase'][0] == '1':
             mask[:walk_in_assign] = 1
             mask[cnt] = 1
+        elif self.mutable_config['phase'][0] == '2':
+            mask[:walk_in_assign] = 1
+            mask[deny_party:combines] = 1
+        elif self.mutable_config['phase'][0] == '3':
+            mask[:quote_wait] = 1
+            mask[deny_party:combines] = 1
+            mask[cnt] = 1
         ret_array  = np.bitwise_and(action_mask, mask)
+        assert np.all((ret_array == 0) | (ret_array == 1)), "Action mask contains values other than 0 and 1"
+
         return ret_array
     def advance_time(self):
         #Update some happinesses of people waiting
@@ -767,7 +822,7 @@ class HostWorldEnv(gym.Env):
         """
         ret = 0
         if self.mutable_config['phase'][0] == '1':
-            ret = party.num_people
+            ret = 0
         return ret
 
     def draw_grid(self,offset):
@@ -987,13 +1042,13 @@ class HostWorldEnv(gym.Env):
                 }
              })
             if party.reservation:
-                observation['waitlist'][-1]['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)
+                observation['waitlist'][-1]['reservation']['time_of_reservation'] = int(party.reservation.reservation_time)//15
                 observation['waitlist'][-1]['reservation']['reservation_status'] = party.reservation.status.value
         while len(observation['waitlist']) < self.immutable_config['max_wait_list']:
             observation['waitlist'].append(dummy_party)
         for reservation in self.reservations:
             observation['reservation_list'].append({
-                'time_of_reservation': int(reservation.reservation_time),
+                'time_of_reservation': int(reservation.reservation_time)//15,
                 'reservation_status': reservation.status.value
             })
         while len(observation['reservation_list']) < self.immutable_config['max_res_list']:

@@ -23,11 +23,18 @@ def create_specific_reservations_list(algorithm,config,phase):
                 rez = {}
                 rez['num_people'] = num
                 if phase == '0':
-                    rez['reservation_time'] = 10
+                    rez['reservation_time'] = 0
                 elif phase == '1':
                     rez['reservation_time'] = random.randint(0,19)
+                elif phase == '2':
+                    rez['reservation_time'] = 0
+                elif phase == '3':
+                    rez['reservation_time'] = 0
                 rez['name'] = faker.name()
-                rez['dine_time'] = 10
+                if phase == '3':
+                    rez['dine_time'] = 20
+                else:
+                    rez['dine_time'] = 10
                 rez['meal_split'] = "10:20:20:40:10"  # TODO put in normal meal_split
                 rez['status'] = "CONFIRMED"
                 result.append(rez)
@@ -44,11 +51,18 @@ def create_specific_reservations_list(algorithm,config,phase):
                 rez = {}
                 rez['num_people'] = num
                 if phase == '0':
-                    rez['arrival_time'] = 10
-                elif phase == '1':
+                    rez['arrival_time'] = 0
+                elif phase == '1' :
+                    rez['arrival_time'] = random.randint(0,19)
+                elif phase == '2':
+                    rez['arrival_time'] = 0
+                elif phase == '3':
                     rez['arrival_time'] = random.randint(0,19)
                 rez['name'] = faker.name()
-                rez['dine_time'] = 10
+                if phase == '3':
+                    rez['dine_time'] = 20
+                else:
+                    rez['dine_time'] = 10
                 rez['meal_split'] = "10:20:20:40:10"  # TODO put in normal meal_split
                 result.append(rez)
             with open(f'walk_in_files/cl_ppo_rudder/phase_{phase}.csv', 'w', newline='') as csvfile:
@@ -60,7 +74,7 @@ def create_specific_reservations_list(algorithm,config,phase):
 
 
 
-def create_reservation_list(seed,total_time,total_covers,push_num,push_times,
+def create_reservation_list(seed,total_time,total_covers,push_num,push_times,save_file,is_reservations,
                             mean=5,std=3,bins=(-np.inf,0,7.5,18,np.inf),
                             normality=0.8,size_density="normal",meal_split='normal',dine_times='normal'):
     """
@@ -132,22 +146,26 @@ def create_reservation_list(seed,total_time,total_covers,push_num,push_times,
     for index, px in enumerate(mapped_values):
         rez = {}
         rez['num_people'] = px
-        rez['reservation_time'] = discrete_times[index] * reservation_interval
+        if is_reservations:
+            rez['reservation_time'] = discrete_times[index] * reservation_interval
+        else:
+            rez['arrival_time'] = discrete_times[index] * reservation_interval
         rez['name'] = faker.name()
         rez['dine_time'] = 20 # TODO: Put in dine time normal
         rez['meal_split'] = "10:20:20:40:10" # TODO put in normal meal_split
-        rez['status'] = "CONFIRMED"
+        if is_reservations:
+            rez['status'] = "CONFIRMED"
         result.append(rez)
 
-    print(result)
+    #print(result)
     #plot_reservation(result)
-    with open(f'reservation_files/reservations({seed}).csv', 'w', newline='') as csvfile:
+    with open(save_file, 'w', newline='') as csvfile:
         fieldnames = result[0].keys()  # Extract headers from the first dictionary
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
         writer.writerows(result)
-    return f'reservation_files/reservations({seed}).csv'
+    return save_file
 
 
 def plot_reservation(res_list):

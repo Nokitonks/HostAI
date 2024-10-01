@@ -27,7 +27,7 @@ phase_0a and phase_0b differentiate learning the assign_reservation actions and 
 phase_0c is a mix between the two.
 
 --------------
-Phase 2
+Phase 1
 --------------
 
 We are now going to introduce time dependency into our model this means the model will be able to use the advance time action.
@@ -44,6 +44,17 @@ to initial actions
 Do we actually need to train our LSTM with this simplistic data? Maybe. Will likely need to see if it can learn quick enough
 at the complex task level to see if it needs this initial training or not. TBD
 
+We want each phase to push back the eventual reward of people sat/served to all the little things during the evening
+that affect that final outcome
+
+
+
+--------------
+Phase 2
+--------------
+
+Here we begin our introduction into combining tables. This is perhaps the craziest phase. We are going to go back to a
+time invariant environment
 
 
 
@@ -55,9 +66,14 @@ from sb3_contrib import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 from stable_baselines3.common.monitor import Monitor
 import wandb
+
+from BasicHost import BasicHost
 from BasicRestaurant1 import MBPost
 from HostEnv import HostWorldEnv, mask_fn
-from utils.callbacks import CL_PPO_RUDDER_PHASE_0_Callback, EnvLogger, CL_PPO_RUDDER_PHASE_1_Callback
+from rudder import LessonBuffer, RRLSTM
+from utils.callbacks import CL_PPO_RUDDER_PHASE_0_Callback, EnvLogger, CL_PPO_RUDDER_PHASE_1_Callback, RudderManager, \
+    CL_PPO_RUDDER_PHASE_2_Callback, SaveOnBestTrainingRewardCallback, CL_PPO_RUDDER_PHASE_3_Callback, \
+    CL_PPO_RUDDER_PHASE_4_Callback
 from wandb.integration.sb3 import WandbCallback
 import torch
 
@@ -169,7 +185,7 @@ class CL_PPO_RUDDER(object):
         phase_0_callback = CL_PPO_RUDDER_PHASE_0_Callback(True,20,info,'c',122)
         self.env.mutable_config['phase'] = "0c"
         self.env.reset()
-        ## Teach Phase 0b ###
+        ## Teach Phase 0c ###
         self.model.learn(total_timesteps=50000, callback=[phase_0_callback,env_logger,wandbc], progress_bar=True)
         self.model.save('models/cl_ppo_rudder/phase_0c')
 
@@ -181,8 +197,46 @@ class CL_PPO_RUDDER(object):
         info['tables'] = self.env.tables
         self.mutable_settings['reservations_path'] = 'reservation_files/cl_ppo_rudder/phase_1.csv'
         self.mutable_settings['walk_ins_path'] = 'walk_in_files/cl_ppo_rudder/phase_1.csv'
-        self.mutable_settings['end_time'] = 20
+        self.mutable_settings['end_time'] = 80
+        self.mutable_settings['n_steps'] = 90
         self.mutable_settings['phase'] = '1a'
+
+
+        env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=self.mutable_settings)
+        env = FlattenObservation(env)
+        env = ActionMasker(env, mask_fn)  # Wrap to enable masking
+        env = Monitor(env, self.mutable_settings['log_dir'])
+
+        # LSTM
+        lb_size = 264
+        n_lstm = 264
+        n_steps = 80
+        policy_lr = 0.1
+        lstm_lr = 1e-2
+        l2_regularization = 1e-6
+        avg_window = 750
+        print(f"Action size = {env.get_n_actions()[-1]}, State size = {env.get_state_shape()[-1]}\n")
+
+        self.env = env
+        self.env.reset()
+        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_0c', env=self.env)
+        phase_1_callback = CL_PPO_RUDDER_PHASE_1_Callback(True,10,info,'a',122)
+        env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, [])
+
+        ## Teach Phase 1a ###
+        self.model.learn(total_timesteps=100000, callback=[phase_1_callback,env_logger], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_1a')
+
+    def run_phase_2(self):
+
+
+        info = {}
+        info['tables'] = self.env.tables
+        self.mutable_settings['reservations_path'] = 'reservation_files/cl_ppo_rudder/phase_2.csv'
+        self.mutable_settings['walk_ins_path'] = 'walk_in_files/cl_ppo_rudder/phase_2.csv'
+        self.mutable_settings['end_time'] = 2
+        self.mutable_settings['n_steps'] = 60
+        self.mutable_settings['phase'] = '2a'
 
         env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=self.mutable_settings)
         env = FlattenObservation(env)
@@ -190,12 +244,122 @@ class CL_PPO_RUDDER(object):
         env = Monitor(env, self.mutable_settings['log_dir'])
         self.env = env
         self.env.reset()
-        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_0c', env=self.env)
-        phase_1_callback = CL_PPO_RUDDER_PHASE_1_Callback(True,20,info,'a',122)
+        # LSTM
+        lb_size = 512
+        n_lstm = 32
+        n_steps = 60
+        policy_lr = 0.1
+        lstm_lr = 1e-2
+        l2_regularization = 1e-6
+        avg_window = 750
+        scaling_factor = 0.11
+
+        lesson_buffer = LessonBuffer(size=lb_size, max_time=n_steps, n_features=env.get_state_shape()[-1])
+
+        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=self.args.log_dir)
+        rudder_lstm = RRLSTM(state_input_size=0, n_actions=env.get_n_actions()[-1],
+                             buffer=lesson_buffer, n_units=n_lstm,
+                             lstm_lr=lstm_lr, l2_regularization=l2_regularization, return_scaling=10,
+                             lstm_batch_size=128, continuous_pred_factor=0.5)
+        RudderCallback = RudderManager(True, lesson_buffer, rudder_lstm,'logs/cl_ppo_rudder/lstm_frames/',env,scaling_factor)
+        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_1a', env=self.env)
+        phase_2_callback = CL_PPO_RUDDER_PHASE_2_Callback(True,100,info,'a',99)
+        env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, lesson_buffer)
+
+        ## Teach Phase 2a ###
+        #Learn 4 party combos
+        self.model.learn(total_timesteps=300000, callback=[phase_2_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_2a')
+
+        ## Teach Phase 2b ###
+        #Learn 6 party combos
+        phase_2_callback = CL_PPO_RUDDER_PHASE_2_Callback(True,100,info,'b',101)
+        self.model.learn(total_timesteps=300000, callback=[phase_2_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_2b')
+
+        ## Teach Phase 2b ###
+        #Learn 8 party combos
+        phase_2_callback = CL_PPO_RUDDER_PHASE_2_Callback(True,100,info,'c',64)
+        self.model.learn(total_timesteps=300000, callback=[phase_2_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_2c')
+
+        #Learn uncombine
+        phase_2_callback = CL_PPO_RUDDER_PHASE_2_Callback(True,100,info,'d',120)
+        self.model.learn(total_timesteps=300000, callback=[phase_2_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_2d')
+
+        #Learn
+
+    def run_phase_3(self):
+        """
+        Phase 3 works on learning the wait / deny functions. It does this by starting with an environment where you have
+        a butload of walk_ins right at open. The model must learn to prioritize reservations and then give walk_ins
+        a wait_time to bring them back
+
+
+        :return:
+        """
+        info = {}
+        info['tables'] = self.env.tables
+        self.mutable_settings['reservations_path'] = 'reservation_files/cl_ppo_rudder/phase_3.csv'
+        self.mutable_settings['walk_ins_path'] = 'walk_in_files/cl_ppo_rudder/phase_3.csv'
+        self.mutable_settings['end_time'] = 250
+        self.mutable_settings['n_steps'] = 1600
+        self.mutable_settings['wait_tolerance'] = 10
+        self.mutable_settings['phase'] = '3a'
+
+        env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=self.mutable_settings)
+        env = FlattenObservation(env)
+        env = ActionMasker(env, mask_fn)  # Wrap to enable masking
+        env = Monitor(env, self.mutable_settings['log_dir'])
+        self.env = env
+        self.env.reset()
+
+        if self.args.human_player:
+            for i in range(1):
+                host = BasicHost(env, i)
+                data_obs, data_actions = host.run_episode()
+                print(len(data_obs))
+
+        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=self.args.log_dir)
+        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_3a', env=self.env)
+
+        #self.model = MaskablePPO.load('logs/cl_ppo_rudder/best_model.zip', env=self.env)
+        phase_3_callback = CL_PPO_RUDDER_PHASE_3_Callback(True,1000,info,'a',120)
         env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, None)
 
-        ## Teach Phase 0a ###
-        self.model.learn(total_timesteps=100000, callback=[phase_1_callback,env_logger], progress_bar=True)
-        #Will reach here once model has gotten 100% with the reservation sittings
-        self.model.save('models/cl_ppo_rudder/phase_1a')
-        pass
+        ## Teach Phase 3a ###
+        #Learn all party combos with uncombine and a time setup at the beginning
+        self.model.learn(total_timesteps=300000, callback=[phase_3_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_3a')
+
+
+    def run_phase_4(self):
+        info = {}
+        info['tables'] = self.env.tables
+        self.mutable_settings['reservations_path'] = 'reservation_files/cl_ppo_rudder/phase_4.csv'
+        self.mutable_settings['walk_ins_path'] = 'walk_in_files/cl_ppo_rudder/phase_4.csv'
+        self.mutable_settings['end_time'] = 240
+        self.mutable_settings['n_steps'] = 1500
+        self.mutable_settings['phase'] = '4a'
+
+        env = HostWorldEnv(immutable_config=self.immutable_settings, mutable_config=self.mutable_settings)
+        env = FlattenObservation(env)
+        env = ActionMasker(env, mask_fn)  # Wrap to enable masking
+        env = Monitor(env, self.mutable_settings['log_dir'])
+        self.env = env
+        self.env.reset()
+
+        auto_save_callback = SaveOnBestTrainingRewardCallback(check_freq=10000, log_dir=self.args.log_dir)
+
+        self.model = MaskablePPO.load('models/cl_ppo_rudder/phase_3a', env=self.env)
+        #self.model = MaskablePPO.load('logs/cl_ppo_rudder/best_model.zip', env=self.env)
+        phase_4_callback = CL_PPO_RUDDER_PHASE_4_Callback(True,1000,info,'a',240)
+        env_logger = EnvLogger(self.args.envlogger_freq, './logs/cl_ppo_rudder/statevar/', self.args.seq_gen, None)
+
+        ## Teach Phase 3a ###
+        #Learn all party combos with uncombine and a time setup at the beginning
+        self.model.learn(total_timesteps=300000, callback=[phase_4_callback,env_logger,auto_save_callback], progress_bar=True)
+        self.model.save('models/cl_ppo_rudder/phase_4a')
+
+

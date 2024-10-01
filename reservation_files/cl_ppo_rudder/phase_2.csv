@@ -1,0 +1,5 @@
+num_people,reservation_time,name,dine_time,meal_split,status
+6,0,Amanda Beasley,10,10:20:20:40:10,CONFIRMED
+6,0,Zachary Miles,10,10:20:20:40:10,CONFIRMED
+6,0,Mary Fowler,10,10:20:20:40:10,CONFIRMED
+6,0,Melissa Allen,10,10:20:20:40:10,CONFIRMED

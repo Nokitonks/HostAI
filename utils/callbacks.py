@@ -7,10 +7,11 @@ import pandas as pd
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from utils.helperFunctions import action_number_into_function,select_features_from_flattened
-from csv_generators import create_specific_reservations_list
+from csv_generators import create_specific_reservations_list, create_reservation_list
 from ClassDefinitions import Algorithm
 import matplotlib.pyplot as plt
 import wandb
+from PIL import Image
 
 class SaveOnBestTrainingRewardCallback(BaseCallback):
     """
@@ -283,7 +284,7 @@ class CL_PPO_RUDDER_PHASE_1_Callback(BaseCallback):
             self.episode_num += 1
             self.episode_rewards.append(self.current_return)
             self.current_return = 0
-            if len(self.episode_rewards) >= 25:
+            if len(self.episode_rewards) >= 200:
                 avg_reward = np.mean(self.episode_rewards[-25:])
 
                 # Check if the average reward has reached the threshold
@@ -293,6 +294,161 @@ class CL_PPO_RUDDER_PHASE_1_Callback(BaseCallback):
                     return False  # Stop training
         return True
 
+class CL_PPO_RUDDER_PHASE_2_Callback(BaseCallback):
+    """
+    This is the callback that generates a new reservation and or walk_in list every n_episodes
+    """
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,sub_phase,conv_value):
+        super(CL_PPO_RUDDER_PHASE_2_Callback, self).__init__()
+        self.gen_reservations = gen_reservations
+        self.gen_freq_reservations = gen_freq_reservations
+        self.env_info = env_info
+        self.episode_num = 1
+        self.episode_rewards = []
+        self.current_return = 0
+        self.reward_threshold = conv_value
+        self.sub_phase = sub_phase
+
+    def _on_step(self):
+
+
+        self.current_return += int(self.locals['rewards'][0])
+
+        if self.episode_num % self.gen_freq_reservations == 1:
+
+            if self.sub_phase == 'a':
+                party_amt = 4
+                num_parties = 25
+            elif self.sub_phase == 'b':
+                party_amt = 6
+                num_parties = 17
+            elif self.sub_phase == 'c':
+                party_amt = 8
+                num_parties = 8
+            elif self.sub_phase == 'd':
+                party_amt = [8,8,6,4,4,4,6,6,6,2,8,4,8,4,2,2,2,2,2,2,6,8,4,4,2,6,2]
+                num_parties = 122
+            #We are going to rescramble the list every episode
+            total_reservations = []
+            total_covers = 0
+
+            if self.sub_phase == 'd':
+                total_reservations = party_amt
+            else:
+                while num_parties > 0:
+                    party_size = random.choice([party_amt])
+                    total_reservations.append(party_size)
+                    num_parties -= 1
+
+            config = {}
+            config['reservations'] = []
+            config['walk_ins'] = []
+            num = random.randint(0,len(total_reservations))
+            for i in range(len(total_reservations)):
+                ele = random.choice(total_reservations)
+                total_reservations.remove(ele)
+                if i < num:
+                    config['reservations'].append(ele)
+                else:
+                    config['walk_ins'].append(ele)
+
+            create_specific_reservations_list(Algorithm.CL_PPO_RUDDER,config,'2')
+
+        # Count episodes
+        if self.locals['dones'][0]:
+            self.episode_num += 1
+            self.episode_rewards.append(self.current_return)
+            self.current_return = 0
+            if len(self.episode_rewards) >= 200:
+                avg_reward = np.mean(self.episode_rewards[-25:])
+
+                # Check if the average reward has reached the threshold
+                if avg_reward >= self.reward_threshold:
+                    print(
+                        f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                    return False  # Stop training
+        return True
+
+class CL_PPO_RUDDER_PHASE_3_Callback(BaseCallback):
+    """
+    This is the callback that generates a new reservation and or walk_in list every n_episodes
+    """
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,sub_phase,conv_value):
+        super(CL_PPO_RUDDER_PHASE_3_Callback, self).__init__()
+        self.gen_reservations = gen_reservations
+        self.gen_freq_reservations = gen_freq_reservations
+        self.env_info = env_info
+        self.episode_num = 1
+        self.episode_rewards = []
+        self.current_return = 0
+        self.reward_threshold = conv_value
+        self.sub_phase = sub_phase
+
+    def _on_step(self):
+
+
+        self.current_return += int(self.locals['rewards'][0])
+
+        if self.episode_num % self.gen_freq_reservations == 1:
+
+            #We still have a random number of reservations throughout the evening with clumps
+            create_reservation_list(5, 240, 260, 3, [10,70,120],'reservation_files/cl_ppo_rudder/phase_3.csv',True)
+            create_reservation_list(5, 240, 120, 1, [10],'walk_in_files/cl_ppo_rudder/phase_3.csv',False)
+
+
+        # Count episodes
+        if self.locals['dones'][0]:
+            self.episode_num += 1
+            self.episode_rewards.append(self.current_return)
+            self.current_return = 0
+            if len(self.episode_rewards) >= 200:
+                avg_reward = np.mean(self.episode_rewards[-25:])
+
+                # Check if the average reward has reached the threshold
+                if avg_reward >= self.reward_threshold:
+                    print(
+                        f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                    return False  # Stop training
+        return True
+
+class CL_PPO_RUDDER_PHASE_4_Callback(BaseCallback):
+    """
+    This is the callback that generates a new reservation and or walk_in list every n_episodes
+    """
+    def __init__(self,gen_reservations,gen_freq_reservations,env_info,sub_phase,conv_value):
+        super(CL_PPO_RUDDER_PHASE_4_Callback, self).__init__()
+        self.gen_reservations = gen_reservations
+        self.gen_freq_reservations = gen_freq_reservations
+        self.env_info = env_info
+        self.episode_num = 1
+        self.episode_rewards = []
+        self.current_return = 0
+        self.reward_threshold = conv_value
+        self.sub_phase = sub_phase
+
+    def _on_step(self):
+
+
+        self.current_return += int(self.locals['rewards'][0])
+
+        if self.episode_num % self.gen_freq_reservations == 0:
+            #We are going to rescramble the list every episode
+            create_reservation_list(5, 240, 250, 3, [10,70,120],'reservation_files/cl_ppo_rudder/phase_4.csv')
+
+        # Count episodes
+        if self.locals['dones'][0]:
+            self.episode_num += 1
+            self.episode_rewards.append(self.current_return)
+            self.current_return = 0
+            if len(self.episode_rewards) >= 200:
+                avg_reward = np.mean(self.episode_rewards[-25:])
+
+                # Check if the average reward has reached the threshold
+                if avg_reward >= self.reward_threshold:
+                    print(
+                        f"Stopping training as average reward {avg_reward} is greater than threshold {self.reward_threshold}")
+                    return False  # Stop training
+        return True
 class RudderManager(BaseCallback):
     """
     Callback for creating buffers and then running the rudder algorithm
@@ -303,12 +459,18 @@ class RudderManager(BaseCallback):
     lstm: our NN that creates our delayed rewards
 
     """
-    def __init__(self, sequence_generate, lesson_buffer,lstm):
+    def __init__(self, sequence_generate, lesson_buffer,lstm,save_dir,env,scaling_factor):
 
         super(RudderManager, self).__init__()
         self.sequence_generate = sequence_generate
         self.lesson_buffer = lesson_buffer
         self.lstm = lstm
+        self.save_dir = save_dir
+        self.env = env
+        self.buffer_full = False
+        self.scaling_factor = scaling_factor
+        os.makedirs(save_dir, exist_ok=True)
+
         """
         If we want to collect sequences for our LSTM then we need to initialize those data structures
         """
@@ -317,6 +479,7 @@ class RudderManager(BaseCallback):
             self.seq_state = []
             self.seq_action = []
             self.seq_reward = []
+            self.seq_frame = []
             self.lesson_buffer = lesson_buffer
         self.episode_num = 1
 
@@ -326,6 +489,8 @@ class RudderManager(BaseCallback):
             self.seq_action.append(self.locals['actions'][0])
             self.seq_state.append(self.locals['new_obs'][0])
             self.seq_reward.append(self.locals['rewards'][0])
+            if self.episode_num % 50 == 0:
+                self.seq_frame.append(self.model.env.render())
             self.mapping = self.model.env.get_attr('flattened_mapping')[0]
 
             #Save experience to lesson_buffer
@@ -333,25 +498,40 @@ class RudderManager(BaseCallback):
                 states = np.stack(self.seq_state)
                 actions = np.array(self.seq_action)
                 rewards = np.array(self.seq_reward)
-                print(states.shape, actions.shape, rewards.shape)
                 self.lesson_buffer.add(states=states, actions=actions, rewards=rewards)
                 if self.lesson_buffer.different_returns_encountered() and self.lesson_buffer.full_enough():
 
                     print("\nReady to Learn\n")
+                    self.buffer_full = True
                     # If RUDDER is run, the LSTM is trained after each episode until its loss is below a threshold.
                     # Samples will be drawn from the lessons buffer.
-                    if self.episode_num % 25 == 0:
+                    if self.episode_num % 50 == 0:
                         self.lstm.train(episode=self.episode_num,state_mapping=self.mapping)
                         # Then the LSTM is used to redistribute the reward.
                         rewards = self.lstm.redistribute_reward(states=np.expand_dims(states, 0),
-                                                       actions=np.expand_dims(actions, 0),state_mapping=self.mapping)[0, :]
+                                                       actions=np.expand_dims(actions, 0),state_mapping=self.mapping)
                         #For each action we take we want to redistribute that reward to it and combine with the state delta.
+                        rudder_rewards = self.model.env.get_attr('rudder_rewards')[0]
+                        for index, reward in enumerate(rewards):
+                            new_rew = rudder_rewards[actions[index]] + (reward * self.scaling_factor)
+                            rudder_rewards[actions[index]] =(new_rew + rudder_rewards[actions[index]])/2
+
+                        self.model.env.set_attr('rudder_rewards', rudder_rewards)
+
+                        ep_save_dir = self.save_dir + f'{self.episode_num}'
+                        os.makedirs(ep_save_dir, exist_ok=True)
+                        for index, frame in enumerate(self.seq_frame):
+                            img = Image.fromarray(frame)
+                            img.save(f"{ep_save_dir}/frame_{self.episode_num}_{actions[index]}_{index}.jpg")
 
 
-                self.seq_action, self.seq_state, self.seq_reward = [], [], []
+
+                self.seq_action, self.seq_state, self.seq_reward, self.seq_frame = [], [], [], []
                 self.episode_num += 1
 
             return True
+
+
 
 class EnvLogger(BaseCallback):
     """

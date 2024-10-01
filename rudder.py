@@ -6,6 +6,8 @@ from nn import LSTMLayer
 from torch.autograd import Variable
 from torch.nn import MSELoss as MSELoss
 from utils.helperFunctions import select_features_from_flattened
+from utils.plot_lstm import plot_lstm
+
 
 def to_one_hot(y, n_dims=None):
     """ Take integer y (tensor or variable) with n dims and convert it to 1-hot representation with n+1 dims. """
@@ -26,8 +28,10 @@ class RRLSTM(nn.Module):
         self.lstm_batch_size = lstm_batch_size
         self.continuous_pred_factor = continuous_pred_factor
         self.n_actions = n_actions
+
         # Forget gate and output gate are deactivated as used in the Atari games, see Appendix S4.2.1
-        self.lstm = LSTMLayer(in_features=state_input_size + n_actions, out_features=n_units,
+        self.in_features = state_input_size + n_actions if state_input_size != 0 else n_actions
+        self.lstm = LSTMLayer(in_features=self.in_features, out_features=n_units,
                               w_ci=(lambda *args, **kwargs: nn.init.normal_(mean=0, std=0.1, *args, **kwargs), False),
                               w_ig=(False, lambda *args, **kwargs: nn.init.normal_(mean=0, std=0.1, *args, **kwargs)),
                               w_og=False,
@@ -41,10 +45,17 @@ class RRLSTM(nn.Module):
         self.lstm_updates = 0
 
     def forward(self, input,state_mapping):
-        states, actions = input
+        if self.in_features != self.n_actions:
+            states, actions = input
+        else:
+            states = []
+            actions = input
         # Prepare input features
         actions = to_one_hot(actions, self.n_actions)
-        input = torch.cat((states, actions), 2)
+        if self.in_features != self.n_actions:
+            input = torch.cat((states, actions), 2)
+        else:
+            input = actions
         # Run the lstm
         lstm_out = self.lstm.forward(input, return_all_seq_pos=True)
         return self.linear(lstm_out[0])
@@ -54,11 +65,13 @@ class RRLSTM(nn.Module):
         states_var = Variable(torch.FloatTensor(states)).detach()
         delta_states = torch.cat([states_var[:, 0:1, :], states_var[:, 1:, :] - states_var[:, :-1, :]], dim=1)
         actions_var = Variable(torch.FloatTensor(actions)).detach()
+        if self.in_features == self.n_actions:
+            lstm_out = self.forward( actions_var,state_mapping)
+        else:
+            lstm_out = self.forward([delta_states, actions_var],state_mapping)
 
-        print(f"{delta_states}\n")
-        print(f"{actions_var}\n")
+        print(f"{delta_states} - States\n")
         # Calculate LSTM predictions
-        lstm_out = self.forward([delta_states, actions_var],state_mapping)
         pred_g0 = torch.cat([torch.zeros_like(lstm_out[:, 0:1, :]), lstm_out], dim=1)[:, :-1, :]
 
         # Difference of predictions of two consecutive timesteps.
@@ -68,7 +81,10 @@ class RRLSTM(nn.Module):
 
         # Scale reward back up as LSTM targets have been scaled.
         new_reward = redistributed_reward * self.return_scaling
-        return new_reward
+
+        plot_lstm(actions_var.detach().numpy()[0],new_reward.detach().numpy()[0])
+
+        return new_reward.detach().numpy()[0]
 
     # Trains the LSTM until -on average- the main loss is below 0.25.
     def train(self, episode,state_mapping):
@@ -76,7 +92,8 @@ class RRLSTM(nn.Module):
         i = 0
         loss_average = 0.3
         mse_loss = MSELoss(reduction="none")
-        while loss_average > 0.15:
+        while loss_average > 0.25:
+            print(loss_average)
             i += 1
             self.lstm_updates += 1
             self.optimizer.zero_grad()
@@ -93,7 +110,10 @@ class RRLSTM(nn.Module):
             delta_states = torch.cat([states_var[:, 0:1, :], states_var[:, 1:, :] - states_var[:, :-1, :]], dim=1)
 
             # Run the LSTM
-            lstm_out = self.forward([delta_states, actions_var],state_mapping)
+            if self.in_features == self.n_actions:
+                lstm_out = self.forward(actions_var,state_mapping)
+            else:
+                lstm_out = self.forward([delta_states, actions_var],state_mapping)
             predicted_G0 = lstm_out.squeeze()
 
             # Loss calculations
@@ -146,7 +166,7 @@ class LessonBuffer:
 
     # Add a new episode to the buffer
     def add(self, states, actions, rewards):
-        trial_length = states.shape[0]
+        trial_length = actions.shape[0]
         next_ind = self.next_spot_to_add
         self.next_spot_to_add = self.next_spot_to_add + 1
         if self.next_spot_to_add >= self.size:

@@ -22,26 +22,26 @@ class TestingEnvironment(object):
 
 if __name__ == '__main__':
     class args:
-        log_dir = "./logs/"
+        log_dir = "./logs/cl_ppo_rudder/"
         CL_step = 1
         total_timesteps = 30000
         track_wandb = True
         wandb_project_name = "hostai"
         wandb_entity = None
         ent_coef = 0
-        gamma = 0.99
+        gamma = 0.95
         n_steps = 128
         target_kl = None
         n_epochs = 1
-        learning_rate = 0.001
+        learning_rate = 0.0008
         envlogger = True
         envlogger_freq = 100
         clip_range = 0.2
         track_local = True
         batch_size = 64
         env_steps = 100
-        seq_gen = False
-        human_player = False
+        seq_gen = True
+        human_player = True
         bc = False
         phase = '0a'
         seed=42
@@ -49,4 +49,7 @@ if __name__ == '__main__':
 
     cl_ppo_rudder = CL_PPO_RUDDER(args,restaurant=MBPost())
     #cl_ppo_rudder.run_phase_0()
-    cl_ppo_rudder.run_phase_1()
+    #cl_ppo_rudder.run_phase_1()
+    #cl_ppo_rudder.run_phase_2()
+    #cl_ppo_rudder.run_phase_3()
+    cl_ppo_rudder.run_phase_3()

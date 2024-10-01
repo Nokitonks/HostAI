@@ -1,0 +1,16 @@
+num_people,reservation_time,name,dine_time,meal_split,status
+2,0,Eileen Perry,20,10:20:20:40:10,CONFIRMED
+8,0,Andrew Zamora,20,10:20:20:40:10,CONFIRMED
+6,0,Daniel Thompson,20,10:20:20:40:10,CONFIRMED
+2,0,Gerald White,20,10:20:20:40:10,CONFIRMED
+4,0,Kevin Davis,20,10:20:20:40:10,CONFIRMED
+6,0,Martha Smith,20,10:20:20:40:10,CONFIRMED
+4,0,Michele Edwards,20,10:20:20:40:10,CONFIRMED
+8,0,Susan Meza,20,10:20:20:40:10,CONFIRMED
+6,0,Brian Allen,20,10:20:20:40:10,CONFIRMED
+4,0,Michael Harper,20,10:20:20:40:10,CONFIRMED
+2,0,Karen Francis,20,10:20:20:40:10,CONFIRMED
+4,0,Eric Williams,20,10:20:20:40:10,CONFIRMED
+8,0,Joe Cooper,20,10:20:20:40:10,CONFIRMED
+2,0,Kimberly Smith,20,10:20:20:40:10,CONFIRMED
+8,0,Michelle Smith,20,10:20:20:40:10,CONFIRMED

@@ -120,7 +120,7 @@ class Table(object):
         except:
             pass
 
-        return -1 ,False
+        return 0,False
 
     def combine_with(self,other_table):
         """
@@ -146,7 +146,7 @@ class Table(object):
         self.combined_with.append(other_table)
         other_table.combined_with.append(self)
 
-        return -1 ,False
+        return 0 ,False
 
     def make_combinable_with(self, other_table):
 
